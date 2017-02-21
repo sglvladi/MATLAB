@@ -1,0 +1,12 @@
+function [m] = throwNeedles(numNeedles)
+
+inCircle = 0;
+X = rand(numNeedles,2);
+tic
+for i = 1:numNeedles
+    if sqrt(X(i,1)^2+X(i,2)^2) <= 1;
+        inCircle = inCircle + 1;
+    end
+end
+m = 4*(inCircle/numNeedles);
+toc

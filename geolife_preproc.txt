@@ -1,0 +1,10 @@
+from openpyxl import load_workbook
+import ecef
+import pickle
+import json
+
+tokens = data.split(" ")
+    mac_addr = tokens[0]
+    temp_1 = tokens[2]
+    temp_2 = tokens[4]
+    cur_time = datetime.now()

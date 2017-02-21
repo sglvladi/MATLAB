@@ -1,0 +1,12 @@
+q = 0.5
+    obs_x = [];
+    obs_y = [];
+    x = [];
+    j=1;
+for i=1:2:size(x_true, 1)
+    x(:,j) = [x_true(i,1); y_true(i,1); th_true(i,1)];
+    noise(j,2) = mvnrnd([0,0],[q^2,0;0,q^2]);
+    obs_x(j,1) = x_true(i)+noise(j,1);
+    obs_y(j,1) = y_true(i)+n;
+    j= j + 1;
+end

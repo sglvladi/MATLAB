@@ -1,0 +1,46 @@
+function NetObj = buildNet(parentNode, ClusterTracks, ValidationMatrix, NetObj)
+    firstTrackInd = ClusterTracks(1);
+    GatedMeasurements = find(ValidationMatrix(:, firstTrackInd)');
+    for i=1:size(GatedMeasurements,2)
+        MeasInd = GatedMeasurements(i);
+        if(parentNode~=[0,0])
+            a = ismember([MeasInd,firstTrackInd], NetObj.NodeList{parentNode(1),parentNode(2)}.children);
+            if(a==0)
+                NetObj.NodeList{parentNode(1),parentNode(2)}.children = [NetObj.NodeList{parentNode(1),parentNode(2)}.children; [MeasInd,firstTrackInd]];;
+        
+            end
+        end
+        NetObj.NodeList{MeasInd,firstTrackInd}.parents = [NetObj.NodeList{MeasInd,firstTrackInd}.parents, parentNode];
+        if(size(ClusterTracks,2)>1)
+            nextTrackInd = ClusterTracks(2);
+            %NetObj.NodeList{MeasInd,firstTrackInd}.children = [NetObj.NodeList{MeasInd,firstTrackInd}.children; [MeasInd,nextTrackInd]];
+            newValidationMatrix = ValidationMatrix;
+            newValidationMatrix(MeasInd,:) = 0;
+            NetObj = buildNet([MeasInd, firstTrackInd], ClusterTracks(ClusterTracks~=firstTrackInd), newValidationMatrix, NetObj);
+        else
+            NetObj.LeafNodes = [NetObj.LeafNodes; [MeasInd, firstTrackInd]];
+        end
+        
+    end
+    MeasInd = size(ValidationMatrix,1)+1;
+    if(parentNode~=[0,0])
+        a = ismember([MeasInd,firstTrackInd], NetObj.NodeList{parentNode(1),parentNode(2)}.children);
+        if(a==0)
+            NetObj.NodeList{parentNode(1),parentNode(2)}.children = [NetObj.NodeList{parentNode(1),parentNode(2)}.children; [MeasInd,firstTrackInd]];;
+    
+        end
+    end
+    NetObj.NodeList{MeasInd,firstTrackInd}.parents = [NetObj.NodeList{MeasInd,firstTrackInd}.parents; parentNode];
+    if(size(ClusterTracks,2)>1)
+        nextTrackInd = ClusterTracks(2);
+        %NetObj.NodeList{MeasInd,firstTrackInd}.children = [NetObj.NodeList{MeasInd,firstTrackInd}.children; [MeasInd,nextTrackInd]];
+        newValidationMatrix = ValidationMatrix;
+        NetObj = buildNet([MeasInd, firstTrackInd], ClusterTracks(ClusterTracks~=firstTrackInd), newValidationMatrix, NetObj);
+    else
+        a = ismember([MeasInd,firstTrackInd],NetObj.LeafNodes);
+        if(a==0)
+            NetObj.LeafNodes = [NetObj.LeafNodes; [MeasInd, firstTrackInd]];
+        end
+    end
+    
+end

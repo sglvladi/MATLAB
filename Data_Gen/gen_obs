@@ -1,0 +1,5 @@
+q = 0.5
+
+for i=1:1019
+    obs_x(i) = x(i)+q*randn(0,q);
+end
