@@ -238,19 +238,17 @@ classdef ParticleFilterMin
 %                         if(size(z,2)>1)
 %                             disp('ERROR');
 %                         end
-                        %try
+                        try
                             Li(ValidDataPointNum+1,1) = C22*(1-sum(pf.betta,2));
                             if(~isempty(pf.betta))
-                                Li(ValidDataPointNum+1,1) = C22;
                                 Li(1:ValidDataPointNum) = C11*mvnpdf(z(:,:)', z_pred', pf.R).*pf.betta';
                             else
-                                Li(ValidDataPointNum+1,1) = C22*(1-sum(pf.betta,2));
-                                Li(1:ValidDataPointNum) = C11*mvnpdf(z(:,:)', z_pred', pf.R)*0;
+                                
                             end
                             disp(pf.betta);
-                        %catch
-                        %    disp('this');
-                        %end
+                        catch
+                            disp('this');
+                        end
                     else
                         Li(ValidDataPointNum+1,1) = C22;
                         Li(1:ValidDataPointNum) = C11*mvnpdf(z(:,:)', z_pred', pf.R);

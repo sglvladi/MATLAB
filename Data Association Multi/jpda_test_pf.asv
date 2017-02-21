@@ -194,14 +194,14 @@ for sim = 1:SimNum
             % NOTE: if your image is RGB, you should use flipdim(img, 1) instead of flipud.
 
             hold on;
-            for j=1:TrackNum,
-                h2 = plot(Logs{j}.sV_ekf(1,1:i),Logs{j}.sV_ekf(2,1:i),'b.-','LineWidth',1);
-                if j==2
-                    set(get(get(h2,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
-                end
-                h2 = plot(Logs{j}.sV_ekf(1,i),Logs{j}.sV_ekf(2,i),'bo','MarkerSize', 10);
-                set(get(get(h2,'Annotation'),'LegendInformation'),'IconDisplayStyle','off'); % Exclude line from legend
-            end
+%             for j=1:TrackNum,
+%                 %h2 = plot(Logs{j}.sV_ekf(1,1:i),Logs{j}.sV_ekf(2,1:i),'b.-','LineWidth',1);
+%                 if j==2
+%                     set(get(get(h2,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
+%                 end
+%                 %h2 = plot(Logs{j}.sV_ekf(1,i),Logs{j}.sV_ekf(2,i),'bo','MarkerSize', 10);
+%                 set(get(get(h2,'Annotation'),'LegendInformation'),'IconDisplayStyle','off'); % Exclude line from legend
+%             end
             h2 = plot(DataList(1,:,i),DataList(2,:,i),'k*','MarkerSize', 10);
             for j=1:TrackNum,
                 colour = 'r';

@@ -27,7 +27,7 @@ PG          = 0.9;      % probability of Gating
 PD          = 0.8;      % probability of Detection
 GateLevel   = 5;
 PointNum = size(ValidationMatrix,1);
-clustering  = 0;
+clustering  = 1;
 
 %% Form clusters of tracks sharing measurements
 clusters = {};
@@ -63,6 +63,8 @@ if(clustering)
             else % If not matched with any cluster, then create a new one.
                 clusters{1,size(clusters,2)+1} = temp_clust;
             end
+        else
+            
         end
     end
 else
@@ -143,9 +145,14 @@ for i=1:TrackNum,
             break;
         end
     end
-    % Get the EHM Net relating to that cluster
-    NetObj = NetList{cluster_id};
-    %NetObj = NetList{1};
+    try
+        % Get the EHM Net relating to that cluster
+        NetObj = NetList{cluster_id};
+        %NetObj = NetList{1};
+    catch
+        disp('this');
+    end
+  
     
    
     % Extract prediction information (Computed from ObservationAssociation.m) 
