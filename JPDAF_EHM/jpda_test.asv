@@ -32,8 +32,8 @@ for sim = 1:SimNum
 
     %% Initiate KF parameters
     n=4;      %number of states
-    q=0.01;    %std of process 
-    r=0.5;    %std of measurement
+    q=0.02;    %std of process 
+    r=0.25;    %std of measurement
     s.Q=[1^3/3, 0, 1^2/2, 0;  0, 1^3/3, 0, 1^2/2; 1^2/2, 0, 1, 0; 0, 1^2/2, 0, 1]*q^2; % covariance of process
     s.R=r^2*eye(n/2);        % covariance of measurement  
     s.sys=(@(x)[x(1)+ x(3); x(2)+x(4); x(3); x(4)]);  % assuming measurements arrive 1 per sec
@@ -56,9 +56,9 @@ for sim = 1:SimNum
     % Option 2) Single-point initiation
     Vmax = 0.4;     % Assume max velocity = 0.4 m/s
     for i = 1:TrackNum
-        s.x_init(:,i)=[x1(1,i); y1(1,i); 0; 0]; %initial state
+        s.x_init(:,i)=[x1(1,i); DataList{1}(2,i); 0; 0]; %initial state
     end
-    s.P_init = diag([q^2, q^2, q^2, q^2]);
+    s.P_init = diag([q^2, q^2, (Vmax^2/3), (Vmax^2/3)]);
 
     N=size(DataList,2) ;   % total dynamic steps
 

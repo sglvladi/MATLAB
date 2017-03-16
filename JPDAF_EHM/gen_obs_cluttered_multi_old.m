@@ -1,15 +1,15 @@
-function DataList = gen_obs_cluttered_multi(TrackNum, x_true, y_true)
+function DataList = gen_obs_cluttered_multi_old(TrackNum, x_true, y_true)
     % Noise std
-    r = 0.5;
+    r = 0.2;
     
     % For simplicity clutter has been normally distributed around each of
     % the targets.
     clutter_rate = 25; % Number of clutter measurements per target
-    r_clutter = 4;
+    r_clutter = 2;
     
     DataList = [];
     ij = 0
-    for i=1:2:size(x_true,1)
+    for i=1:1:size(x_true,1)
         ij=ij+1;
         for j=1:TrackNum
             if (x_true(i,j)~=0 && y_true(i,j)~=0)

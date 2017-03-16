@@ -87,7 +87,7 @@ for Run_iter=1:No_of_Runs
     sys_pchr = @(k, xkm1, uk) [sqrt((xkm1(1)^2 +2*xkm1(1)*xkm1(3)*Dt*cos(xkm1(2)-xkm1(4))+xkm1(3)^2*Dt^2)); atan((xkm1(1)*sin(xkm1(2))+xkm1(3)*Dt*sin(xkm1(4)))/(xkm1(1)*cos(xkm1(2))+xkm1(3)*Dt*cos(xkm1(4)))); xkm1(3)+ uk(3); xkm1(4) + xkm1(5); xkm1(5) + uk(5)]; % (returns column vector)
     sys_pchr2 = @(k, xkm1, uk) [sqrt((xkm1(1)*cos(xkm1(2))+xkm1(3)*Dt*cos(xkm1(4)))^2+(xkm1(1)*sin(xkm1(2))+xkm1(3)*Dt*sin(xkm1(4)))^2); atan((xkm1(1)*sin(xkm1(2))+xkm1(3)*Dt*sin(xkm1(4)))/(xkm1(1)*cos(xkm1(2))+xkm1(3)*Dt*cos(xkm1(4)))); xkm1(3)+ uk(3); xkm1(4) + xkm1(5); xkm1(5) + uk(5)]; % (returns column vector)
     sys_pch = @(k, xkm1, uk) [sqrt((xkm1(1)*cos(xkm1(2))+xkm1(3)*Dt*cos(xkm1(4)))^2+(xkm1(1)*sin(xkm1(2))+xkm1(3)*Dt*sin(xkm1(4)))^2); atan((xkm1(1)*sin(xkm1(2))+xkm1(3)*Dt*sin(xkm1(4)))/(xkm1(1)*cos(xkm1(2))+xkm1(3)*Dt*cos(xkm1(4)))); xkm1(3)+ uk(3); xkm1(4) + uk(4)]; % (returns column vector)
-    sys_ccv = @(k, xkm1, uk) [xkm1(1,:)+1*xkm1(3,:)+uk(:,1)'; xkm1(2,:)+1*xkm1(4,:)+uk(:,2)'; xkm1(3,:)+ uk(:,3)'; xkm1(4,:) + uk(:,4)'];
+    sys_ccv = @(k, xkm1, uk) [xkm1(1)+1*xkm1(3)+uk(1); xkm1(2)+1*xkm1(4)+uk(2); xkm1(3)+ uk(3); xkm1(4) + uk(4)];
     sys_cch = @(k, xkm1, uk) [xkm1(1,:)+1*xkm1(3,:).*cos(xkm1(4,:)); xkm1(2,:)+1*xkm1(3,:).*sin(xkm1(4,:)); xkm1(3,:)+ uk(:,3)'; xkm1(4,:) + uk(:,4)'];
     sys_cchr = @(k, xkm1, uk) [xkm1(1)+1*xkm1(3)*cos(xkm1(4)); xkm1(2)+1*xkm1(3)*sin(xkm1(4)); xkm1(3)+ uk(3); xkm1(4) + xkm1(5); xkm1(5) + uk(5)]; % (returns column vector)
 
@@ -100,12 +100,12 @@ for Run_iter=1:No_of_Runs
     nu = 4;                                           % size of the vector of process noise
     sigma_u = q;
     cov_u = [Dt^3/3, 0, Dt^2/2, 0;  0, Dt^3/3, 0, Dt^2/2; Dt^2/2, 0, Dt, 0; 0, Dt^2/2, 0, Dt]*q^2;
-    gen_sys_noise_pch = @(u) mvnrnd(zeros(size(u,2), nu), diag([0,0,0.01^2,0.3^2]));
-    gen_sys_noise_pchr = @(u) mvnrnd(zeros(size(u,2), 5), diag([0,0, 0.01^2, 0, 0.1^2]));         % sample from p_sys_noise (returns column vector)
-    gen_sys_noise_ccv = @(u) mvnrnd(zeros(size(u,2), nu), cov_u);
+    gen_sys_noise_pch = @(u) mvnrnd(zeros(1, nu), diag([0,0,0.01^2,0.3^2]));
+    gen_sys_noise_pchr = @(u) mvnrnd(zeros(1, 5), diag([0,0, 0.01^2, 0, 0.1^2]));         % sample from p_sys_noise (returns column vector)
+    gen_sys_noise_ccv = @(u) mvnrnd(zeros(1, nu), cov_u);
     gen_sys_noise_ccv2 = @(u) mvnrnd(zeros(size(u,2), nu), 2*cov_u);
     gen_sys_noise_cch = @(u) mvnrnd(zeros(size(u,2), nu), diag([0,0,0.01^2,0.3^2])); 
-    gen_sys_noise_cchr = @(u) mvnrnd(zeros(size(u,2),5), diag([0,0,0.01^2,0,1^2]));
+    gen_sys_noise_cchr = @(u) mvnrnd(zeros(1,5), diag([0,0,0.01^2,0,1^2]));
     % PDF of observation noise and noise generator function
     nv = 2;                                           % size of the vector of observation noise
     sigma_v = r;
@@ -135,7 +135,7 @@ for Run_iter=1:No_of_Runs
     % Assign PF parameter values
     pf.clutter_flag = 0;
     pf.k               = 1;                   % initial iteration number
-    pf.Np              = 10000;                 % number of particles
+    pf.Np              = 1000;                 % number of particles
     %pf.w               = zeros(pf.Np, T);     % weights
     pf.particles       = zeros(5, pf.Np); % particles
     pf.gen_x0          = gen_x0_pchr;              % function for sampling from initial pdf p_x0 (used to generate initial particles)
@@ -355,24 +355,24 @@ for Run_iter=1:No_of_Runs
 %         set(gca,'ydir','normal');
          pause(0.001)
         % Generate new state
-%         ax = gca;
-%         ax.Units = 'pixels';
-%         pos = ax.Position;
-%         marg = 30;
-%         rect = [-marg, -marg, pos(3)+2*marg, pos(4)+2*marg];
-%         F(k) = getframe(gcf);
-%         ax.Units = 'normalized';
+        ax = gca;
+        ax.Units = 'pixels';
+        pos = ax.Position;
+        marg = 30;
+        rect = [-marg, -marg, pos(3)+2*marg, pos(4)+2*marg];
+        F(k) = getframe(gcf);
+        ax.Units = 'normalized';
        % st = ukf.s.sys(st)+q*(-1 + 2*rand(3,1));                % update process 
     end
-%     F = F(2:end);
-%     name = sprintf('test_s%d.avi',Run_iter);
-%     vidObj = VideoWriter(name);
-%     vidObj.Quality = 100;
-%     vidObj.FrameRate = 10;
-%     open(vidObj);
-%     writeVideo(vidObj, F);
-%     close(vidObj);
-%     winopen(name);
+    F = F(2:end);
+    name = sprintf('test_s%d.avi',Run_iter);
+    vidObj = VideoWriter(name);
+    vidObj.Quality = 100;
+    vidObj.FrameRate = 10;
+    open(vidObj);
+    writeVideo(vidObj, F);
+    close(vidObj);
+    winopen(name);
 
     %% Compute & Print RMSE
     eV_kf = (permute(xh(3,1:2,:),[2 3 1]) - x(1:2,1:N)).*(permute(xh(3,1:2,:),[2 3 1]) - x(1:2,1:N));

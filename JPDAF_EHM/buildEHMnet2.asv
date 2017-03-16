@@ -74,7 +74,7 @@ for j=1:LayerNum
         ParentInd = L_jm1_Ind(i_jm1);
 
         % Get all targets to consider
-        T_jm1 = union(1,setdiff(T_j,NetObj.NodeList{ParentInd}.TrackIndList)); 
+        T_jm1 = fast_union_sorted(1,fast_setdiff_sorted(fast_unique(T_j),fast_unique(NetObj.NodeList{ParentInd}.TrackIndList))); 
 
         % For every track in T_jm1
         for i=1:size(T_jm1,2)
@@ -111,15 +111,15 @@ for j=1:LayerNum
                 for j_sub = j+1:LayerNum
                     T_rem_j = union(T_rem_j, find(ValidationMatrix(j_sub,:))');
                 end
-                NetObj.NodeList{ChildInd}.Remainders = setdiff(T_rem_j,setdiff(NetObj.NodeList{ChildInd}.TrackIndList,1)); 
+                NetObj.NodeList{ChildInd}.Remainders = fast_setdiff_sorted(fast_unique(T_rem_j),fast_setdiff_sorted(fast_unique(NetObj.NodeList{ChildInd}.TrackIndList),1)); 
             else
          
                 % Compute remainders (j-1)
                 T_rem_jm1_ti = []; %T_j+1:mk[N^(j-1)_(i_j-1),t_i]
                 for j_sub = j+1:LayerNum
-                    T_rem_jm1_ti = union(T_rem_jm1_ti, find(ValidationMatrix(j_sub,:))');
+                    T_rem_jm1_ti = fast_union_sorted(fast_unique(T_rem_jm1_ti), fast_unique(find(ValidationMatrix(j_sub,:))'));
                 end
-                R_jm1 = setdiff(T_rem_jm1_ti,setdiff(union(NetObj.NodeList{ParentInd}.TrackIndList, TrackInd),1));
+                R_jm1 = fast_setdiff_sorted(T_rem_jm1_ti,fast_setdiff_sorted(fast_union_sorted(fast_unique(NetObj.NodeList{ParentInd}.TrackIndList), TrackInd),1));
                 R_jm1 = R_jm1(:); % Enforce that R_jm1 is a column vector
 
                 % For all nodes in current layer
@@ -171,9 +171,9 @@ for j=1:LayerNum
                     % Compute remainders
                     T_rem_j = []; % T_j+1:mk[N^(j)_(i_j)]
                     for j_sub = j+1:LayerNum
-                        T_rem_j = union(T_rem_j, find(ValidationMatrix(j_sub,:))');
+                        T_rem_j = fast_union_sorted(fast_unique(T_rem_j), fast_unique(find(ValidationMatrix(j_sub,:))'));
                     end
-                    R_j = setdiff(T_rem_j,setdiff(NetObj.NodeList{ChildInd}.TrackIndList,1));
+                    R_j = fast_setdiff_sorted(fast_unique(T_rem_j),fast_setdiff_sorted(fast_unique(NetObj.NodeList{ChildInd}.TrackIndList),1));
                     NetObj.NodeList{ChildInd}.Remainders = R_j; 
                 end
             end
@@ -244,8 +244,8 @@ for NodeInd=1:size(NetObj.NodeList,2)
         for j = 1:size(Node.ParentIndList,2)
             ParentInd = Node.ParentIndList(j);
             TrackEdgeList = cell2mat(NetObj.EdgeList(ParentInd, NodeInd));
-            if (ismember(TrackInd, TrackEdgeList)~=0)
-                ValidParentIndList = union(ValidParentIndList,ParentInd);
+            if (fast_ismember_sorted(TrackInd, TrackEdgeList)~=0)
+                ValidParentIndList = fast_union_sorted(fast_unique(ValidParentIndList),ParentInd);
             end
         end 
         

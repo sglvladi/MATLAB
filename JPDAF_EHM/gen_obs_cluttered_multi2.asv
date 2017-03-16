@@ -1,11 +1,11 @@
-function [DataList, x, y] = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, q , q_clutter, lambda)
+function [DataList, x, y] = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, q , q_clutter, lambda, increment)
 %     q = 0.5
 %     q_clutter = 8;
     DataList = {};
     k=1;
     x = [];
     y = [];
-    for i=1:1:size(x_true,1)
+    for i=1:increment:size(x_true,1)
         for j=1:TrackNum
             x(k,j) = x_true(i,j);
             y(k,j) = y_true(i,j);
@@ -16,5 +16,6 @@ function [DataList, x, y] = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, q
             DataList{k}(:,j) = [unifrnd(0,10), unifrnd(0,10)];
         end
         k=k+1;
+        DataList{k}(:,randperm(size(A,2)));
     end
 end

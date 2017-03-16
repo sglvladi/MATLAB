@@ -20,7 +20,7 @@ function [TrackList, ValidationMatrix, bettaNTFA] = Observation_Association(Trac
 
 
 % parameters
-GateLevel   = 5; % 98.9% of data in gate
+GateLevel   = 9; % 98.9% of data in gate
 TrackNum    = size(TrackList,2);
 PointNum    = size(DataList,2);
 ObsDim      = size(DataList,1);

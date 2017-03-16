@@ -129,6 +129,8 @@ classdef ParticleFilterMin
         end
         
         function pf = Predict(obj, pf)
+             Pdeath =  0.05;
+             pf.ExistProb = (1 - Pdeath)*pf.ExistProb;
              nx = size(pf.particles,1);               % number of states
              ny = size(pf.z,1);
              k = pf.k;
@@ -145,9 +147,9 @@ classdef ParticleFilterMin
                     pf.particles(:,i) = mvnrnd(pf.kf.s.x,pf.kf.s.P); % Sample from optimal proposal
                  end
             else
-                 for i = 1:pf.Np
-                    pf.particles(:,i) = pf.sys(k, pf.particles(:,i), pf.sys_noise()); % Simply propagate all particles
-                 end
+                 %for i = 1:pf.Np
+                 pf.particles(:,:) = pf.sys(k, pf.particles(:,:), pf.sys_noise(pf.particles(:,:))); % Simply propagate all particles
+                 %end
             end
             
             if(pf.clutter_flag)
@@ -161,11 +163,7 @@ classdef ParticleFilterMin
                 
                 trans_parts = pf.obs_model(pf.particles);   % Transform particles to observation space
                 trans_parts = trans_parts + mvnrnd(zeros(size(trans_parts')),pf.R)';
-                trans_mean = zeros(ny,1);
-                for i = 1:pf.Np
-                    trans_mean(:,1) = trans_mean(:,1) + pf.w(i)*trans_parts(:,i);
-                end
-    %             kfs = pf.w*ones(1,2);
+                trans_mean = mean(trans_parts,2);
                 
                 pf.S = [std(trans_parts(1,:),pf.w')^2,0;0,std(trans_parts(2,:),pf.w')^2];
                 pf.V_k = C*GateLevel^(ObsDim/2)*det(pf.S)^(1/2);   % volume of the validation region 
@@ -190,6 +188,9 @@ classdef ParticleFilterMin
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 % thresholding/ gating
                 pf.Validation_matrix = DistM < GateLevel;
+                if(isempty(find(pf.Validation_matrix,1)))
+                    a=5;
+                end
                 pf.z_pred = mean(trans_parts,2);
             end
         end
@@ -203,6 +204,7 @@ classdef ParticleFilterMin
                 PointNum    = size(pf.z,2); % number of measurements
                 ObsDim      = size(pf.z,1); % measurement dimensions
                 C           = pi; % volume of the 2-dimensional unit hypersphere
+                betta       = zeros(1,PointNum+1);  
                 
                 % Get valid measurement data indices
                 DataInd = find(pf.Validation_matrix(1,:));
@@ -224,6 +226,12 @@ classdef ParticleFilterMin
             wk   = zeros(size(pf.w(:)));     % = zeros(Np,1);
             clutter_flag = pf.clutter_flag;
             % Update weights
+            sum_0 = 0;
+            sum_1 = 0;
+            z_pred = pf.obs_model(pf.particles(:,:));
+            Li_i = mvnpdf(z(:,:)', z_pred', pf.R);
+            for i = 1:size(z, 2);
+                Li_i(:,i) = mvnpdf(z(:,i)', pf.R);
             for i = 1:Np                        
                
                 if(~clutter_flag)    % If no clutter is present
@@ -231,29 +239,41 @@ classdef ParticleFilterMin
                     wk(i) = pf.w(i) * pf.obs(k, pf.z, pf.particles(:,i));
                 else
                     Li = zeros(ValidDataPointNum+1, 1);
-                    z_pred = pf.obs_model(pf.particles(:,i));
                     
                     %% Compute Association Likelihoods 
                     if(pf.multi_flag)
 %                         if(size(z,2)>1)
 %                             disp('ERROR');
 %                         end
-                        try
-                            Li(ValidDataPointNum+1,1) = C22*(1-sum(pf.betta,2));
-                            if(~isempty(pf.betta))
-                                Li(1:ValidDataPointNum) = C11*mvnpdf(z(:,:)', z_pred', pf.R).*pf.betta';
+                       
+                            %Li(ValidDataPointNum+1,1) = C22*(1-sum(pf.betta,2));
+                            if(size(pf.betta,2)~=1)
+                                try
+                                    Li(ValidDataPointNum+1,1) = C22;%*pf.betta(1);
+                                    Li(1:ValidDataPointNum) = C11*Li_i(i);%.*pf.betta(2:end)';
+                                    sum_Li = sum(Li,1);
+                                    Li = Li/sum_Li;
+                                    Li(ValidDataPointNum+1,1) = Li(ValidDataPointNum+1,1)*pf.betta(1)*sum_Li;
+                                    Li(1:ValidDataPointNum) = Li(1:ValidDataPointNum).*pf.betta(2:end)'*sum_Li;
+                                catch
+                                    disp('this');
+                                end
                             else
-                                
+                                try
+                                    Li(ValidDataPointNum+1,1) = C22*pf.betta(1);
+                                    Li(1:ValidDataPointNum) = C11*mvnpdf(z(:,:)', z_pred', pf.R)*0;
+                                catch
+                                    disp('this');
+                                end
                             end
-                            disp(pf.betta);
-                        catch
-                            disp('this');
-                        end
+                            %disp(pf.betta);
                     else
                         Li(ValidDataPointNum+1,1) = C22;
                         Li(1:ValidDataPointNum) = C11*mvnpdf(z(:,:)', z_pred', pf.R);
                     end
                     
+                    sum_0 = sum_0 + Li(ValidDataPointNum+1);
+                    sum_1 = sum_1 + sum(Li(1:ValidDataPointNum),1);
                     % Calculate new weights according to expected likelihood
                     wk(i) = pf.w(i) * sum(Li,1); %obj.expectedLikelihood(pf.z, z_pred, pf.R);
                 end  
@@ -278,6 +298,12 @@ classdef ParticleFilterMin
             for i = 1:Np
                pf.xhk(:,1) = pf.xhk(:,1) + pf.w(i)*pf.particles(:,i);
             end
+            
+            if(pf.clutter_flag)
+                pf.ExistProb = (1-pf.ExistProb)*sum_1/(sum_0+sum_1) + pf.ExistProb; 
+                disp(pf.ExistProb);
+            end
+                
             
         end
         

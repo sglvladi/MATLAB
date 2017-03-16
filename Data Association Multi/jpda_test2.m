@@ -2,7 +2,7 @@
 TrackNum = 3;
 
 % Generate observations
-DataList = gen_obs_cluttered_multi(TrackNum, x_true, y_true);
+[DataList,x1,y1] = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, 0.5, 2, 10,1);
 RMSE_ekf = zeros(2, TrackNum);
 
 % Number of simulations
@@ -20,7 +20,7 @@ for sim = 1:SimNum
      s.R=r^2*eye(n/2);        % covariance of measurement  
      s.sys=(@(x)[x(1)+ x(3); x(2)+x(4); x(3); x(4)]);  % assuming measurements arrive 1 per sec
      s.obs=@(x)[x(1);x(2)];                               % measurement equation
-     st=[x_true(1,:);y_true(1,:)];                                % initial state
+     st=[x1(1,:);y1(1,:)];                                % initial state
 %     s.x_init = [0,0,0,0];
      s.P_init = [];
 % 
@@ -36,7 +36,7 @@ for sim = 1:SimNum
 %     % Single-point initiation
      Vmax = 0.4; % Max velocity = 0.4 m/s
     for i = 1:TrackNum
-        s.x_init(:,i)=[DataList(1,i,2); DataList(2,i,2); 0; 0]; %initial state
+        s.x_init(:,i)=DataList{1}(1,i); DataList{1}(2,i); 0; 0; %initial state
     end
      s.P_init = diag([q^2, q^2, (Vmax^2/3), (Vmax^2/3)]);
 % 
@@ -50,7 +50,7 @@ for sim = 1:SimNum
 %     % initial covariMeasInd, TrackIndance assumed same for all tracks
      TrackObj.P          = s.P_init;
 % 
-     N=size(DataList,3) ;                                    % total dynamic steps
+     N=size(DataList,2) ;                                    % total dynamic steps
 % 
      % Instantiate EKF and vars to store output
      Logs = [];
@@ -93,11 +93,11 @@ for sim = 1:SimNum
     figure
     for i=1:N
         fprintf('Iteration = %d/\n',i);
-        tempDataList = DataList(:,:,i);
+        tempDataList = DataList{i}(:,:);
         tempDataList( :, ~any(tempDataList,1) ) = []; 
         [TrackList, ValidationMatrix, bettaNTFA] = Observation_Association(TrackList, tempDataList, ekf);
         %TrackList = JPDAF_EKF_Update(TrackList, DataList(:,:,i), ValidationMatrix', bettaNTFA);
-        [TrackList, betta] = JPDAF_UKF_Update(TrackList, tempDataList, ValidationMatrix', bettaNTFA);
+        [TrackList, betta] = JPDAF_EHM_Update(TrackList, tempDataList, ValidationMatrix', bettaNTFA);
         %TrackList = Track_InitConfDel(TrackList,tempDataList,ValidationMatrix',bettaNTFA, betta);
         
         
@@ -105,7 +105,7 @@ for sim = 1:SimNum
         %store Logs
         for j=1:TrackNum,
             Logs{j}.xV_ekf(:,i) = TrackList{j}.TrackObj.x;
-            %st = [x_true(i,j); y_true(i,j)];
+            %st = [x1(i,j); y1(i,j)];
            % Logs{j}.sV_ekf(:,i)= st;
             % Compute squared error
             %Logs{j}.eV_ekf(:,i) = (TrackList{j}.TrackObj.x(1:2,1) - st).*(TrackList{j}.TrackObj.x(1:2,1) - st);
@@ -128,7 +128,7 @@ for sim = 1:SimNum
 %                 %h2 = plot(Logs{j}.sV_ekf(1,i),Logs{j}.sV_ekf(2,i),'bo','MarkerSize', 10);
 %                 set(get(get(h2,'Annotation'),'LegendInformation'),'IconDisplayStyle','off'); % Exclude line from legend
 %             end
-            h2 = plot(DataList(1,:,i),DataList(2,:,i),'k*','MarkerSize', 10);
+            h2 = plot(DataList{i}(1,:),DataList{i}(2,:),'k*','MarkerSize', 10);
             for j=1:TrackNum,
                 colour = 'r';
                 if(j==2)

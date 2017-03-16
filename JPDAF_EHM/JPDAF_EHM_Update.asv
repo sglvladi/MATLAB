@@ -156,7 +156,6 @@ end
 %% Compute weights and update each track
 for i=1:TrackNum,
     
-    cluster_id = 0;
     % Get the index of the cluster which track belongs to
     for j=1:size(ClusterList,2)
         Cluster = ClusterList{j};
@@ -188,28 +187,19 @@ for i=1:TrackNum,
     %------------------------------------------------
     % compute association probabilities (non-parametric JPDA)
 
-    % If target has been matched with a cluster
-    %  then extract it's association prob. matrix
-    if(cluster_id~=0)
-        % Get the EHM Net relating to that cluster
-        NetObj = NetList{cluster_id};
-        %NetObj = NetList{1};
-        % separate memory for likelihood ratios and association prababilities
-        %Li_k    = zeros(1, ValidDataPointNum+1);   
-        betta   = zeros(1,ValidDataPointNum); 
-
-        % Compute likelihood ratios
-        ClustMeasIndList=[];
-        for j=1:size(DataInd,2)
-            ClustMeasIndList(j) = find(ClusterList{cluster_id}.MeasIndList==DataInd(j));
-        end    
-        ClustTrackInd = find(ClusterList{cluster_id}.TrackIndList==i)+1; % T1 is the false alarm
-
-        % Extract betta for target
-        betta = NetObj.betta(ClustMeasIndList,ClustTrackInd)';
-    else
-        betta = [];
-    end
+    % separate memory for likelihood ratios and association prababilities
+    %Li_k    = zeros(1, ValidDataPointNum+1);   
+    betta   = zeros(1,ValidDataPointNum); 
+    
+    % Compute likelihood ratios
+    ClustMeasIndList=[];
+    for j=1:size(DataInd,2)
+        ClustMeasIndList(j) = find(ClusterList{cluster_id}.MeasIndList==DataInd(j));
+    end    
+    ClustTrackInd = find(ClusterList{cluster_id}.TrackIndList==i)+1; % T1 is the false alarm
+    
+    % Extract betta for target
+    betta = NetObj.betta(ClustMeasIndList,ClustTrackInd)';
      
     %------------------------------------------------
     % update

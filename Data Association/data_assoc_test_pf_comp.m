@@ -15,7 +15,7 @@ for test_iter = 1:size(r_list,2)
         lost_avg = [];
         % Number of Target Tracks
         TrackNum = 1 ;
-        [DataList,x1,y1] = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, r_list(1,test_iter), 16, 0);
+        [DataList,x1,y1] = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, r_list(1,test_iter), 16, 50);
 
         Dt=1;
 %         q = 0.01;
@@ -65,7 +65,7 @@ for test_iter = 1:size(r_list,2)
          %% Initiate PF parameters
 
         % Process equation x[k] = sys(k, x[k-1], u[k]);
-        sys_cch = @(k, xkm1, uk) [xkm1(1)+1*xkm1(3)*cos(xkm1(4)); xkm1(2)+1*xkm1(3)*sin(xkm1(4)); xkm1(3)+ uk(3); xkm1(4) + uk(4)];
+        sys_cch = @(k, xkm1, uk) [xkm1(1,:)+1*xkm1(3,:).*cos(xkm1(4,:)); xkm1(2,:)+1*xkm1(3,:).*sin(xkm1(4,:)); xkm1(3,:)+ uk(:,3)'; xkm1(4,:) + uk(:,4)'];
 
         % Observation equation y[k] = obs(k, x[k], v[k]);
         obs = @(k, xk, vk) [xk(1)+vk(1); xk(2)+vk(2)];                  % (returns column vector)
@@ -74,7 +74,7 @@ for test_iter = 1:size(r_list,2)
         nu = 4;                                           % size of the vector of process noise
         %sigma_u = q;
         %cov_u = [Dt^3/3, 0, Dt^2/2, 0;  0, Dt^3/3, 0, Dt^2/2; Dt^2/2, 0, Dt, 0; 0, Dt^2/2, 0, 1]*sigma_u^2;
-        gen_sys_noise_cch = @(u) mvnrnd(zeros(1, nu), diag([0,0,0.01^2,0.3^2])); 
+        gen_sys_noise_cch = @(u) mvnrnd(zeros(size(u,2), nu), diag([0,0,q^2,0.3^2]));  
         % PDF of observation noise and noise generator function
         nv = 2;                                           % size of the vector of observation noise
         sigma_v = r;
@@ -95,7 +95,7 @@ for test_iter = 1:size(r_list,2)
 
         % Assign PF parameter values
         pf.k               = 1;                   % initial iteration number
-        pf.Np              = 1000;                 % number of particles
+        pf.Np              = 10000;                 % number of particles
         %pf.w               = zeros(pf.Np, T);     % weights
         pf.particles       = zeros(5, pf.Np); % particles
         %pf.p_x0 = p_x0;                          % initial prior PDF p(x[0])
@@ -132,7 +132,7 @@ for test_iter = 1:size(r_list,2)
             TrackList{i}.TrackObj = TrackObj;
             pf.gen_x0 = @(x) mvnrnd([x1(2,1); y1(2,1); sqrt((x1(2,1)-x1(1,1))^2+(y1(2,1)-y1(1,1))^2); atan((y1(2,1)+0.1-y1(1,1))/(x1(2,1)+0.1-x1(1,1)))],diag([sigma_v^2, sigma_v^2, 2*sigma_v^2, 2*sigma_v^2]));
             pf.xhk = [s.x_init(1,i),s.x_init(2,i),0,0]';
-            TrackListPF{i}.TrackObj = ParticleFilterMin(pf);
+            TrackListPF{i}.TrackObj = ParticleFilterMin2(pf);
             xh(i,:,1) = pf.xhk;
             %TrackList{i}.TrackObj.x(ObservInd) = CenterData(:,i);
 

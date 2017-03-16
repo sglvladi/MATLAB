@@ -1,4 +1,4 @@
-classdef ParticleFilterMin
+classdef ParticleFilterMin2
 % =====================================================================================
 % Parameters:
 % pf: structure with the following fields
@@ -27,7 +27,7 @@ classdef ParticleFilterMin
     end
     
     methods
-        function obj = ParticleFilterMin(prop)
+        function obj = ParticleFilterMin2(prop)
             % Validate .Np
             if ~isfield(prop,'Np')
                 fprintf('Number of particles missing... Assuming "Np = 1"..\n');
@@ -47,13 +47,13 @@ classdef ParticleFilterMin
                     fprintf('Function handle to sample from initial pdf not given... Cannot proceed..\n');
                     error('Please supply either an initial set of particles, or a function handle (gen_0) to allow for generation of initial ones!\n');
                 else
-                    for i = 1:prop.Np                          % simulate initial particles
+                    %for i = 1:prop.Np                          % simulate initial particles
                         %prop.gen_x0()
-                        prop.particles(:,i) = prop.gen_x0(); % at time k=1
-                    end   
+                    prop.particles(:,:) = prop.gen_x0(prop.Np)'; % at time k=1
+                    %end   
                     prop.w = repmat(1/prop.Np, prop.Np, 1);
-                    fprintf('Generated %d particles with uniform weights\n',i);
-                    fprintf('Their std is %d \n', std(prop.particles(:,i),1));
+                    fprintf('Generated %d particles with uniform weights\n',prop.Np);
+                    %fprintf('Their std is %d \n', std(prop.particles(:,:),1));
 %                     prop.particles(:,:)
 %                     prop.w
                 end
@@ -129,8 +129,6 @@ classdef ParticleFilterMin
         end
         
         function pf = Predict(obj, pf)
-             Pdeath =  0.05;
-             pf.ExistProb = (1 - Pdeath)*pf.ExistProb;
              nx = size(pf.particles,1);               % number of states
              ny = size(pf.z,1);
              k = pf.k;
@@ -147,9 +145,9 @@ classdef ParticleFilterMin
                     pf.particles(:,i) = mvnrnd(pf.kf.s.x,pf.kf.s.P); % Sample from optimal proposal
                  end
             else
-                 for i = 1:pf.Np
-                    pf.particles(:,i) = pf.sys(k, pf.particles(:,i), pf.sys_noise(pf.particles(:,i))); % Simply propagate all particles
-                 end
+                 %for i = 1:pf.Np
+                 pf.particles(:,:) = pf.sys(k, pf.particles(:,:), pf.sys_noise(pf.particles(:,:))); % Simply propagate all particles
+                 %end
             end
             
             if(pf.clutter_flag)
@@ -199,7 +197,7 @@ classdef ParticleFilterMin
             if(pf.clutter_flag)
                 % Expected likelihood variables 
                 GateLevel   = 10;
-                PG          = 0.9889;      % probability of Gating
+                PG          = 0.989;      % probability of Gating
                 PD          = 0.8;      % probability of Detection
                 PointNum    = size(pf.z,2); % number of measurements
                 ObsDim      = size(pf.z,1); % measurement dimensions
@@ -214,8 +212,8 @@ classdef ParticleFilterMin
                 [ObsDim,ValidDataPointNum] = size(z);
                 % V_k = 10^2*pi;   % volume of the validation region: 2-D area of circle with radius=5
                 lambda = ValidDataPointNum/pf.V_k; % expected rate of clutter per unit region (2 over entire volume)
-                C1 = PD*PG*poisspdf(ValidDataPointNum-1,lambda*pf.V_k)/pf.V_k^(ValidDataPointNum-1);
-                C2 = (1-PD*PG)*poisspdf(ValidDataPointNum,lambda*pf.V_k)/pf.V_k^(ValidDataPointNum);
+                C1 = PD*PG*poisspdf(ValidDataPointNum-1,lambda*pf.V_k);%/pf.V_k^(ValidDataPointNum-1);
+                C2 = (1-PD*PG)*poisspdf(ValidDataPointNum,lambda*pf.V_k);%/pf.V_k^(ValidDataPointNum);
                 C11 = C1/(C1+C2);
                 C22 = C2/(C1+C2);
             end
@@ -226,55 +224,26 @@ classdef ParticleFilterMin
             wk   = zeros(size(pf.w(:)));     % = zeros(Np,1);
             clutter_flag = pf.clutter_flag;
             % Update weights
-            sum_0 = 0;
-            sum_1 = 0;
-            for i = 1:Np                        
+            
+            %for i = 1:Np                        
                
-                if(~clutter_flag)    % If no clutter is present
-                    % Calculate new weights according to observation likelihood
-                    wk(i) = pf.w(i) * pf.obs(k, pf.z, pf.particles(:,i));
-                else
-                    Li = zeros(ValidDataPointNum+1, 1);
-                    z_pred = pf.obs_model(pf.particles(:,i));
-                    
-                    %% Compute Association Likelihoods 
-                    if(pf.multi_flag)
-%                         if(size(z,2)>1)
-%                             disp('ERROR');
-%                         end
-                       
-                            %Li(ValidDataPointNum+1,1) = C22*(1-sum(pf.betta,2));
-                            if(size(pf.betta,2)~=1)
-                                try
-                                    Li(ValidDataPointNum+1,1) = C22;%*pf.betta(1);
-                                    Li(1:ValidDataPointNum) = C11*mvnpdf(z(:,:)', z_pred', pf.R);%.*pf.betta(2:end)';
-                                    sum_Li = sum(Li,1);
-                                    Li = Li/sum_Li;
-                                    Li(ValidDataPointNum+1,1) = Li(ValidDataPointNum+1,1)*pf.betta(1)*sum_Li;
-                                    Li(1:ValidDataPointNum) = Li(1:ValidDataPointNum).*pf.betta(2:end)'*sum_Li;
-                                catch
-                                    disp('this');
-                                end
-                            else
-                                try
-                                    Li(ValidDataPointNum+1,1) = C22*pf.betta(1);
-                                    Li(1:ValidDataPointNum) = C11*mvnpdf(z(:,:)', z_pred', pf.R)*0;
-                                catch
-                                    disp('this');
-                                end
-                            end
-                            %disp(pf.betta);
-                    else
-                        Li(ValidDataPointNum+1,1) = C22;
-                        Li(1:ValidDataPointNum) = C11*mvnpdf(z(:,:)', z_pred', pf.R);
-                    end
-                    
-                    sum_0 = sum_0 + Li(ValidDataPointNum+1);
-                    sum_1 = sum_1 + sum(Li(1:ValidDataPointNum),1);
-                    % Calculate new weights according to expected likelihood
-                    wk(i) = pf.w(i) * sum(Li,1); %obj.expectedLikelihood(pf.z, z_pred, pf.R);
-                end  
-            end;
+            if(~clutter_flag)    % If no clutter is present
+                % Calculate new weights according to observation likelihood
+                wk = pf.w .* pf.obs(k, pf.z, pf.particles(:,:));
+            else
+                z_pred = pf.obs_model(pf.particles(:,:));
+                %Li_i = mvnpdf(z(:,:)', z_pred', pf.R);
+                Li = zeros(size(z_pred,2),size(z, 2)+1);
+                Li(:,1) = C22/(pf.V_k^(ValidDataPointNum));
+                for i = 1:size(z, 2);
+                    Li(:,i+1) = mvnpdf(z_pred', z(:,i)', pf.R)*C11/(pf.V_k^(ValidDataPointNum-1)*ValidDataPointNum);
+                end
+
+                % Calculate new weights according to expected likelihood
+                wk = pf.w .* sum(Li(:,:),2); 
+
+            end  
+            %end;
             % Normalize weight vector
             pf.w = wk./sum(wk);
             
@@ -292,23 +261,21 @@ classdef ParticleFilterMin
             
             % Compute estimated state
             pf.xhk = zeros(nx,1);
-            for i = 1:Np
-               pf.xhk(:,1) = pf.xhk(:,1) + pf.w(i)*pf.particles(:,i);
-            end
-            
-            if(pf.clutter_flag)
-                pf.ExistProb = (1-pf.ExistProb)*sum_1/(sum_0+sum_1) + pf.ExistProb; 
-                disp(pf.ExistProb);
-            end
-                
+            %for i = 1:Np
+            pf.xhk(:,1) = sum(bsxfun(@times, pf.w(1,:)', pf.particles(:,:)),2);             
             
         end
         
-        function pf = Iterate(obj, pf)
-            k = pf.k;
-            if k == 1
-               error('error: k must be an integer greater or equal than 2');
-            end
+        function pf = PredictMulti(obj, pf)
+             Pdeath =  0.1;
+             pf.ExistProb = (1 - Pdeath)*pf.ExistProb;
+             nx = size(pf.particles,1);               % number of states
+             ny = size(pf.z,1);
+             k = pf.k;
+             
+%             if k == 1
+%                error('error: k must be an integer greater or equal than 2');
+%             end
             
             if(pf.optimal_prop_flag)
                  pf.kf.s.z = pf.z;
@@ -319,25 +286,27 @@ classdef ParticleFilterMin
                     pf.particles(:,i) = mvnrnd(pf.kf.s.x,pf.kf.s.P); % Sample from optimal proposal
                  end
             else
-                 for i = 1:pf.Np
-                    pf.particles(:,i) = pf.sys(k, pf.particles(:,i), pf.sys_noise()); % Simply propagate all particles
-                 end
+                 %for i = 1:pf.Np
+                 pf.particles(:,:) = pf.sys(k, pf.particles(:,:), pf.sys_noise(pf.particles(:,:))); % Simply propagate all particles
+                 %end
             end
             
             if(pf.clutter_flag)
                 % Expected likelihood variables 
                 GateLevel   = 9;
-                PG          = 0.9889;      % probability of Gating
+                PG          = 0.989;      % probability of Gating
                 PD          = 0.8;      % probability of Detection
                 PointNum = size(pf.z,2); % number of measurements
                 ObsDim = size(pf.z,1); % measurement dimensions
+                C   = pi; % volume of the 2-dimensional unit hypersphere    
+                
                 trans_parts = pf.obs_model(pf.particles);   % Transform particles to observation space
                 trans_parts = trans_parts + mvnrnd(zeros(size(trans_parts')),pf.R)';
-    %             kfs = pf.w*ones(1,2);
+                trans_mean = mean(trans_parts,2);
                 
-                pf.S = [std(trans_parts(1,:),pf.w')^2,0;0,std(trans_parts(2,:),pf.w')^2];
-                C   = pi; % volume of the 2-dimensional unit hypersphere     
-                pf.V_k = C*GateLevel^(ObsDim/2)*det(S)^(1/2);   % volume of the validation region 
+                %pf.S = [std(trans_parts(1,:),pf.w')^2,0;0,std(trans_parts(2,:),pf.w')^2];
+                pf.S = weightedcov(trans_parts',pf.w');
+                pf.V_k = C*GateLevel^(ObsDim/2)*det(pf.S)^(1/2);   % volume of the validation region 
                 
                 % Particle-by-Particle validation matrix computation
 %                Validation_matrix = zeros(1,PointNum);
@@ -354,52 +323,242 @@ classdef ParticleFilterMin
 %                     DistM2  = sum(((pf.z-mean(trans_part,2)*ones(1,PointNum)).*(pf.z-mean(trans_part,2)*ones(1,PointNum)))'/S,2)';
 %                     Validation_matrix = Validation_matrix + DistM2 < GateLevel;
 %                 end
-                DistM  = sum(((pf.z-mean(trans_parts,2)*ones(1,PointNum)).*(pf.z-mean(trans_parts,2)*ones(1,PointNum)))'/pf.S,2)';
-               
+                DistM  = sum(((pf.z-trans_mean*ones(1,PointNum)).*(pf.z-trans_mean*ones(1,PointNum)))'/pf.S,2)';
+
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 % thresholding/ gating
-                Validation_matrix = DistM < GateLevel;
-                DataInd      = find(Validation_matrix(1,:));
+                pf.Validation_matrix = DistM < GateLevel;
+                if(isempty(find(pf.Validation_matrix,1)))
+                    a=5;
+                end
+                % Get valid measurement data indices
+                DataInd = find(pf.Validation_matrix(1,:));
 
-                %------------------------------------------------
+                % extract measurements
+                z = pf.z(:,DataInd);
+                [ObsDim,ValidDataPointNum] = size(z);
+                
+                lambda = ValidDataPointNum/pf.V_k; % expected rate of clutter per unit region (2 over entire volume)
+                C1 = PD*PG*poisspdf(ValidDataPointNum-1,lambda*pf.V_k);%/pf.V_k^(ValidDataPointNum-1);
+                C2 = (1-PD*PG)*poisspdf(ValidDataPointNum,lambda*pf.V_k);%/pf.V_k^(ValidDataPointNum);
+                C11 = C1/(C1+C2);
+                C22 = C2/(C1+C2);
+                
+                pf.z_pred = mean(trans_parts,2);
+                %% Compute Association Likelihoods 
+                z_pred = pf.obs_model(pf.particles(:,:));
+                pf.Li = zeros(pf.Np, ValidDataPointNum);
+                try
+                    for i = 1:ValidDataPointNum;
+                        pf.Li(:,i) = mvnpdf(z_pred', pf.z(:,i)', pf.R);
+                    end
+                    pf.Li = sum(pf.Li, 1)/pf.Np;
+                catch
+                    disp('Association Likelihood error!!');
+                end
+            end
+        end
+        
+        function pf = UpdateMulti(obj, pf)
+            PG          = 0.989;      % probability of Gating
+            PD          = 0.8;      % probability of Detection
+            % Get valid measurement data indices
+            DataInd = find(pf.Validation_matrix(1,:));
+
+            % extract measurements
+            z = pf.z(:,DataInd);
+            [ObsDim,ValidDataPointNum] = size(z);
+            
+            lambda = ValidDataPointNum/pf.V_k; % expected rate of clutter per unit region (2 over entire volume)
+            C1 = PD*PG*poisspdf(ValidDataPointNum-1,lambda*pf.V_k);%/pf.V_k^(ValidDataPointNum-1);
+            C2 = (1-PD*PG)*poisspdf(ValidDataPointNum,lambda*pf.V_k);%/pf.V_k^(ValidDataPointNum);
+            C11 = C1/(C1+C2);
+            C22 = C2/(C1+C2);
+          
+            % Initialize variables
+            Np = pf.Np;                              % number of particles
+            nx = size(pf.particles,1);               % number of states
+            
+            wk   = zeros(size(pf.w(:)));     % = zeros(Np,1);
+            clutter_flag = pf.clutter_flag;
+            
+            %% Compute Association Likelihoods 
+            z_pred = pf.obs_model(pf.particles(:,:));
+            Li = zeros(size(z_pred,2),ValidDataPointNum+1);
+            try
+                Li(:,1) = ones(size(z_pred,2),1)*pf.betta(1);%*C22/(pf.V_k^(ValidDataPointNum));
+            catch
+                disp('error');
+            end
+            try
+                if(size(pf.betta,2)~=1)
+                    for i = 1:size(z, 2);
+                        Li(:,i+1) = mvnpdf(z_pred', z(:,i)', pf.R)*pf.betta(i+1);%*C11/(pf.V_k^(ValidDataPointNum-1)*ValidDataPointNum);
+                    end
+                end
+            catch
+                disp('Association Likelihood error!!');
+            end
+            
+            % Calculate new weights according to expected likelihood
+            wk = pf.w .* sum(Li(:,:),2); 
+            
+            % Normalize weight vector
+            pf.w = wk./sum(wk);
+            
+            % Calculate effective sample size: eq 48, Ref 1
+            Neff = 1/sum(pf.w.^2);
+            
+            % Resampling
+%             resample_percentage = 0.50;
+%             Nt = resample_percentage*Np;
+%             if Neff < Nt
+               disp('Resampling ...')
+               [pf.particles, pf.w] = obj.resample(pf.particles, pf.w, pf.resampling_strategy);
+% %               {xk, pf.w} is an approximate discrete representation of p(x_k | y_{1:k})
+%             end
+            
+            % Compute estimated state
+            pf.xhk(:,1) = sum(bsxfun(@times, pf.w(1,:)', pf.particles(:,:)),2);
+            
+            % Update existence probability
+            if(pf.clutter_flag)
+                pf.ExistProb = (1-pf.ExistProb)*sum(Li(:,2:end))/(sum(Li(:,1))+sum(Li(:,2:end))) + pf.ExistProb; 
+                disp(pf.ExistProb);
+            end
+                
+        end
+        
+        function pf = PredictSearch(obj, pf)
+            Pbirth = 0.005;
+            Pdeath =  0.1;
+            nx = size(pf.particles,1);               % number of states
+            ny = size(pf.z,1);
+            k = pf.k;
+%             if k == 1
+%                error('error: k must be an integer greater or equal than 2');
+%             end
+            pf.ExistProb =  Pbirth*(1-pf.ExistProb) + (1-Pdeath)*pf.ExistProb;
+            
+            if(pf.optimal_prop_flag)
+                 pf.kf.s.z = pf.z;
+                 pf.kf.s.x = (mean(pf.particles,2));
+                 pf.kf.s.P = weightedcov(pf.particles',pf.w');
+                 pf.kf.s = pf.kf.Iterate(pf.kf.s);
+                 for i = 1:pf.Np
+                    pf.particles(:,i) = mvnrnd(pf.kf.s.x,pf.kf.s.P); % Sample from optimal proposal
+                 end
+            else
+                 %for i = 1:pf.Np
+                 pf.particles(:,:) = pf.sys(k, pf.particles(:,:), pf.sys_noise(pf.particles(:,:))); % Simply propagate all particles
+                 %end
+            end
+            
+            if(pf.clutter_flag)
+                % Expected likelihood variables 
+                GateLevel   = 9;
+                PG          = 0.989;      % probability of Gating
+                PD          = 0.8;      % probability of Detection
+                PointNum = size(pf.z,2); % number of measurements
+                ObsDim = size(pf.z,1); % measurement dimensions
+                C   = pi; % volume of the 2-dimensional unit hypersphere    
+                
+                trans_parts = pf.obs_model(pf.particles);   % Transform particles to observation space
+                trans_parts = trans_parts + mvnrnd(zeros(size(trans_parts')),pf.R)';
+                trans_mean = mean(trans_parts,2);
+                
+                pf.S = [std(trans_parts(1,:),pf.w')^2,0;0,std(trans_parts(2,:),pf.w')^2];
+                pf.V_k = C*GateLevel^(ObsDim/2)*det(pf.S)^(1/2);   % volume of the validation region 
+                
+                % Particle-by-Particle validation matrix computation
+%                Validation_matrix = zeros(1,PointNum);
+%                 for i=1:pf.Np
+%                     trans_part = trans_parts(:,i);
+%                     
+%                     for j=1:PointNum
+%                         % distance
+%                         if(Validation_matrix(1,j)==0)
+%                             DistM(1,j)  = mahalDist(pf.z(:,j), mean(trans_part,2), S, 2);
+%                             Validation_matrix(1,j)= DistM(1,j) < GateLevel;
+%                         end
+%                     end
+%                     DistM2  = sum(((pf.z-mean(trans_part,2)*ones(1,PointNum)).*(pf.z-mean(trans_part,2)*ones(1,PointNum)))'/S,2)';
+%                     Validation_matrix = Validation_matrix + DistM2 < GateLevel;
+%                 end
+                DistM  = sum(((pf.z-trans_mean*ones(1,PointNum)).*(pf.z-trans_mean*ones(1,PointNum)))'/pf.S,2)';
+
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                % thresholding/ gating
+                pf.Validation_matrix = DistM < GateLevel;
+                if(isempty(find(pf.Validation_matrix,1)))
+                    a=5;
+                end
+                pf.z_pred = mean(trans_parts,2);
+            end
+        end
+        
+        function pf = UpdateSearch(obj, pf)
+            if(pf.clutter_flag)
+                % Expected likelihood variables 
+                GateLevel   = 10;
+                PG          = 0.989;      % probability of Gating
+                PD          = 0.8;      % probability of Detection
+                PointNum    = size(pf.z,2); % number of measurements
+                ObsDim      = size(pf.z,1); % measurement dimensions
+                C           = pi; % volume of the 2-dimensional unit hypersphere
+                betta       = zeros(1,PointNum+1);  
+                
+                % Get valid measurement data indices
+                DataInd = find(pf.Validation_matrix(1,:));
+                
                 % extract measurements
                 z = pf.z(:,DataInd);
                 [ObsDim,ValidDataPointNum] = size(z);
                 % V_k = 10^2*pi;   % volume of the validation region: 2-D area of circle with radius=5
                 lambda = ValidDataPointNum/pf.V_k; % expected rate of clutter per unit region (2 over entire volume)
-                C1 = PD*PG*poisspdf(ValidDataPointNum-1,lambda*pf.V_k)/pf.V_k^(ValidDataPointNum-1);
-                C2 = (1-PD*PG)*poisspdf(ValidDataPointNum,lambda*V_k)/pf.V_k^(ValidDataPointNum);
+                C1 = PD*PG*poisspdf(ValidDataPointNum-1,lambda*pf.V_k);%/pf.V_k^(ValidDataPointNum-1);
+                C2 = (1-PD*PG)*poisspdf(ValidDataPointNum,lambda*pf.V_k);%/pf.V_k^(ValidDataPointNum);
                 C11 = C1/(C1+C2);
                 C22 = C2/(C1+C2);
             end
             % Initialize variables
             Np = pf.Np;                              % number of particles
             nx = size(pf.particles,1);               % number of states
-
-            % Separate memory
-            %xkm1 = pf.particles(:,:); % extract particles from last iteration;
-            %wkm1 = pf.w(:);                     % weights of last iteration
-            %xk   = zeros(size(pf.particles(:,:)));     % = zeros(nx,Np);
-            %wk   = zeros(size(pf.w(:)));     % = zeros(Np,1);
             
-            for i = 1:Np                        
-               
-                if(~pf.clutter_flag)    % If no clutter is present
-                    % Calculate new weights according to observation likelihood
-                    pf.w(i) = pf.w(i) * pf.obs(k, pf.z, pf.particles(:,i));
+            wk   = zeros(size(pf.w(:)));     % = zeros(Np,1);
+            clutter_flag = pf.clutter_flag;
+            
+            % Update weights       
+            if(~clutter_flag)    % If no clutter is present
+                % Calculate new weights according to observation likelihood
+                wk = pf.w .* pf.obs(k, pf.z, pf.particles(:,:));
+            else
+                z_pred = pf.obs_model(pf.particles(:,:));
+                %Li_i = mvnpdf(z(:,:)', z_pred', pf.R);
+                Li = zeros(size(z_pred,2),size(z, 2)+1);
+                Li(:,1) = C22/(pf.V_k^(ValidDataPointNum));
+                for i = 1:size(z, 2);
+                    Li(:,i+1) = mvnpdf(z_pred', z(:,i)', pf.R)*C11/(pf.V_k^(ValidDataPointNum-1)*ValidDataPointNum);
+                end
+
+                % Calculate new weights according to expected likelihood
+                if(pf.ExistProb<0.9)
+                    wk = pf.w .* sum(Li(:,:),2);
+                    pf.ExistProb = (1-pf.ExistProb)*sum(Li(:,2:end))/(sum(Li(:,1))+sum(Li(:,2:end))) + pf.ExistProb; 
+                    disp(pf.ExistProb);
                 else
-                     Li = zeros(ValidDataPointNum+1, 1);
-                     z_pred = pf.obs_model(pf.particles(:,i));
-                    
-                    %% Compute Association Likelihoods 
-                    Li(ValidDataPointNum+1,1) = C22;
-                    Li(1:ValidDataPointNum) = C11*mvnpdf(z(:,:)', z_pred', pf.R);
-                    % Calculate new weights according to expected likelihood
-                    pf.w(i) = pf.w(i) * sum(Li,1); %obj.expectedLikelihood(pf.z, z_pred, pf.R);
-                end  
-            end;
+                    % When promoting a track, condition on the most likely
+                    % measurement to avoid multi-modality
+                    [betta_max, betta_max_ind]=max(betta);
+                    wk = pf.w .* Li(:,betta_max_ind);
+                    pf.ExistProb = sum(Li(:,2:end))/(sum(Li(:,1))+sum(Li(:,2:end))); 
+                    disp(pf.ExistProb);
+                end
+
+            end  
+            %end;
             % Normalize weight vector
-            pf.w = pf.w./sum(pf.w);
+            pf.w = wk./sum(wk);
             
             % Calculate effective sample size: eq 48, Ref 1
             Neff = 1/sum(pf.w.^2);
@@ -415,9 +574,67 @@ classdef ParticleFilterMin
             
             % Compute estimated state
             pf.xhk = zeros(nx,1);
-            for i = 1:Np
-               pf.xhk(:,1) = pf.xhk(:,1) + pf.w(i)*pf.particles(:,i);
+            %for i = 1:Np
+            pf.xhk(:,1) = sum(bsxfun(@times, pf.w(1,:)', pf.particles(:,:)),2);             
+            
+        end
+        
+        function pf = Iterate(obj, pf)
+            k = pf.k;
+            if k == 1
+               error('error: k must be an integer greater or equal than 2');
             end
+            
+            if(pf.optimal_prop_flag)
+                 pf.kf.s.z = pf.z;
+                 pf.kf.s.x = (mean(pf.particles,2));
+                 pf.kf.s.P = weightedcov(pf.particles',pf.w');
+                 pf.kf.s = pf.kf.Iterate(pf.kf.s);
+                 %for i = 1:pf.Np
+                    pf.particles(:,:) = mvnrnd((pf.kf.s.x*ones(1, pf.Np))',pf.kf.s.P)'; % Sample from optimal proposal
+                 %end
+            else
+                 %for i = 1:pf.Np
+                 pf.particles(:,:) = pf.sys(k, pf.particles(:,:), pf.sys_noise(pf.particles(:,:))); % Simply propagate all particles
+                 %end
+            end
+            
+            % Initialize variables
+            Np = pf.Np;                              % number of particles
+            nx = size(pf.particles,1);               % number of states
+            
+            if(~pf.clutter_flag)    % If no clutter is present
+                % Calculate new weights according to observation likelihood
+                pf.w = pf.w .* pf.obs(k, pf.z, pf.particles(:,:));
+             else
+%                  Li = zeros(ValidDataPointNum+1, 1);
+%                  z_pred = pf.obs_model(pf.particles(:,i));
+% 
+%                 %% Compute Association Likelihoods 
+%                 Li(ValidDataPointNum+1,1) = C22;
+%                 Li(1:ValidDataPointNum) = C11*mvnpdf(z(:,:)', z_pred', pf.R);
+%                 % Calculate new weights according to expected likelihood
+%                 pf.w(i) = pf.w(i) * sum(Li,1); %obj.expectedLikelihood(pf.z, z_pred, pf.R);
+            end  
+            % Normalize weight vector
+            pf.w = pf.w./sum(pf.w);
+            
+            % Calculate effective sample size: eq 48, Ref 1
+            Neff = 1/sum(pf.w.^2);
+            
+            % Resampling
+             resample_percentage = 0.50;
+             Nt = resample_percentage*Np;
+            if Neff < Nt
+               disp('Resampling ...')
+               [pf.particles, pf.w] = obj.resample(pf.particles, pf.w, pf.resampling_strategy);
+% %               {xk, pf.w} is an approximate discrete representation of p(x_k | y_{1:k})
+             end
+            
+            % Compute estimated state
+            pf.xhk = zeros(nx,1);
+            % Compute estimated state
+            pf.xhk(:,1) = sum(bsxfun(@times, pf.w(:,1)', pf.particles(:,:)),2);
             
         end
         

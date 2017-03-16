@@ -1,8 +1,8 @@
 function DataList = gen_obs_cluttered_multi(TrackNum, x_true, y_true)
-    r = 0.5
+    r = 0.2
     r_clutter = 2;
     DataList = [];
-    for i=1:size(x_true,1)
+    for i=1:5:size(x_true,1)
 
         for j=1:TrackNum
             if (x_true(i,j)~=0 && y_true(i,j)~=0)
