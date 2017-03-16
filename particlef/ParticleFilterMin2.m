@@ -421,9 +421,11 @@ classdef ParticleFilterMin2
             % Compute estimated state
             pf.xhk(:,1) = sum(bsxfun(@times, pf.w(1,:)', pf.particles(:,:)),2);
             
+            c = sum(pf.betta(2:end))*pf.ExistProb + pf.betta(1)*(1-pf.ExistProb);
             % Update existence probability
             if(pf.clutter_flag)
-                pf.ExistProb = (1-pf.ExistProb)*sum(Li(:,2:end))/(sum(Li(:,1))+sum(Li(:,2:end))) + pf.ExistProb; 
+                pf.ExistProb = (sum(pf.betta(2:end))*pf.ExistProb)/c;
+                %pf.ExistProb = (1-pf.ExistProb)*sum(Li(:,2:end))/(sum(Li(:,1))+sum(Li(:,2:end))) + pf.ExistProb; 
                 disp(pf.ExistProb);
             end
                 

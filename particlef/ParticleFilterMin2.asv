@@ -337,6 +337,13 @@ classdef ParticleFilterMin2
                 % extract measurements
                 z = pf.z(:,DataInd);
                 [ObsDim,ValidDataPointNum] = size(z);
+                
+                lambda = ValidDataPointNum/pf.V_k; % expected rate of clutter per unit region (2 over entire volume)
+                C1 = PD*PG*poisspdf(ValidDataPointNum-1,lambda*pf.V_k);%/pf.V_k^(ValidDataPointNum-1);
+                C2 = (1-PD*PG)*poisspdf(ValidDataPointNum,lambda*pf.V_k);%/pf.V_k^(ValidDataPointNum);
+                C11 = C1/(C1+C2);
+                C22 = C2/(C1+C2);
+                
                 pf.z_pred = mean(trans_parts,2);
                 %% Compute Association Likelihoods 
                 z_pred = pf.obs_model(pf.particles(:,:));
@@ -353,13 +360,20 @@ classdef ParticleFilterMin2
         end
         
         function pf = UpdateMulti(obj, pf)
-            
+            PG          = 0.989;      % probability of Gating
+            PD          = 0.8;      % probability of Detection
             % Get valid measurement data indices
             DataInd = find(pf.Validation_matrix(1,:));
 
             % extract measurements
             z = pf.z(:,DataInd);
             [ObsDim,ValidDataPointNum] = size(z);
+            
+            lambda = ValidDataPointNum/pf.V_k; % expected rate of clutter per unit region (2 over entire volume)
+            C1 = PD*PG*poisspdf(ValidDataPointNum-1,lambda*pf.V_k);%/pf.V_k^(ValidDataPointNum-1);
+            C2 = (1-PD*PG)*poisspdf(ValidDataPointNum,lambda*pf.V_k);%/pf.V_k^(ValidDataPointNum);
+            C11 = C1/(C1+C2);
+            C22 = C2/(C1+C2);
           
             % Initialize variables
             Np = pf.Np;                              % number of particles
@@ -372,14 +386,14 @@ classdef ParticleFilterMin2
             z_pred = pf.obs_model(pf.particles(:,:));
             Li = zeros(size(z_pred,2),ValidDataPointNum+1);
             try
-                Li(:,1) = ones(size(z_pred,2),1)*pf.betta(1);
+                Li(:,1) = ones(size(z_pred,2),1)*pf.betta(1);%*C22/(pf.V_k^(ValidDataPointNum));
             catch
                 disp('error');
             end
             try
                 if(size(pf.betta,2)~=1)
                     for i = 1:size(z, 2);
-                        Li(:,i+1) = mvnpdf(z_pred', z(:,i)', pf.R)*pf.betta(i+1);
+                        Li(:,i+1) = mvnpdf(z_pred', z(:,i)', pf.R)*pf.betta(i+1);%*C11/(pf.V_k^(ValidDataPointNum-1)*ValidDataPointNum);
                     end
                 end
             catch
@@ -407,8 +421,10 @@ classdef ParticleFilterMin2
             % Compute estimated state
             pf.xhk(:,1) = sum(bsxfun(@times, pf.w(1,:)', pf.particles(:,:)),2);
             
+            c = sum(pf.betta(2:end))*pf.ExistProb + pf.betta(1)*(1-pf.ExistProb);
             % Update existence probability
             if(pf.clutter_flag)
+                pf.ExistProb = sum(
                 pf.ExistProb = (1-pf.ExistProb)*sum(Li(:,2:end))/(sum(Li(:,1))+sum(Li(:,2:end))) + pf.ExistProb; 
                 disp(pf.ExistProb);
             end

@@ -2,7 +2,7 @@
 TrackNum = 3;
 
 % Generate observations
-DataList = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, 0.5, 2, 5, 1);
+%DataList = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, 0.2, 2, 15, 1);
 RMSE_ekf = zeros(2, TrackNum);
 
 % Number of simulations
@@ -18,7 +18,7 @@ for sim = 1:SimNum
     % Initiate KF parameters
      n=4;      %number of state
      q=0.01;    %std of process 
-     r=0.5;    %std of measurement
+     r=0.2;    %std of measurement
      s.Q=[1^3/3, 0, 1^2/2, 0;  0, 1^3/3, 0, 1^2/2; 1^2/2, 0, 1, 0; 0, 1^2/2, 0, 1]*10*q^2; % covariance of process
      s.R=r^2*eye(n/2);        % covariance of measurement  
      s.sys=(@(x)[x(1)+ x(3); x(2)+x(4); x(3); x(4)]);  % assuming measurements arrive 1 per sec
@@ -149,7 +149,7 @@ for sim = 1:SimNum
     %end; 
 
     %ekf = EKalmanFilter(TrackObj);
-    ekf = UKalmanFilter(TrackObj, 0.5, 1, 2);
+    %ekf = UKalmanFilter(TrackObj, 0.5, 1, 2);
 
     img = imread('maze.png');
 
@@ -294,8 +294,8 @@ for sim = 1:SimNum
                     end
                     
                     %plot search track
-                    h4 = plot(pf_search.pf.xhk(1,:),pf_search.pf.xhk(2,:),'g.-','LineWidth',1);
-                    h4 = plot(pf_search.pf.xhk(1,:),pf_search.pf.xhk(2,:),'go','MarkerSize', 10);
+                    %h4 = plot(pf_search.pf.xhk(1,:),pf_search.pf.xhk(2,:),'g.-','LineWidth',1);
+                    %h4 = plot(pf_search.pf.xhk(1,:),pf_search.pf.xhk(2,:),'go','MarkerSize', 10);
                     plot(pf_search.pf.particles(1,:),pf_search.pf.particles(2,:),'g.','MarkerSize', 3);
                         % set the y-axis back to normal.
                     set(gca,'ydir','normal');
@@ -370,9 +370,9 @@ for sim = 1:SimNum
                     end
                     h2 = plot(DataList{i}(1,:),DataList{i}(2,:),'k*','MarkerSize', 10);
 
-                    h4 = plot(pf_search.pf.xhk(1,:),pf_search.pf.xhk(2,:),strcat(colour,'.-'),'LineWidth',1);
-                    h4 = plot(pf_search.pf.xhk(1,:),pf_search.pf.xhk(2,:),strcat(colour,'o'),'MarkerSize', 10);
-                    plot(pf_search.pf.particles(1,:),pf_search.pf.particles(2,:),strcat(colour,'.'),'MarkerSize', 3);
+                    h4 = plot(pf_search.pf.xhk(1,:),pf_search.pf.xhk(2,:),'g.-','LineWidth',1);
+                    h4 = plot(pf_search.pf.xhk(1,:),pf_search.pf.xhk(2,:),'go','MarkerSize', 10);
+                    plot(pf_search.pf.particles(1,:),pf_search.pf.particles(2,:),'g.','MarkerSize', 3);
                     set(get(get(h4,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
                     % set the y-axis back to normal.
                     set(gca,'ydir','normal');
