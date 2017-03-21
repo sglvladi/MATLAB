@@ -15,7 +15,7 @@
 TrackNum = size(x_true, 2);
 
 % Generate measurements (including clutter) from ground truth
-%[DataList,x1,y1] = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, 0.25, 1, 20,2);
+[DataList,x1,y1] = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, 0.25, 1, 20,2);
 
 % Create variable to store RMSE for each track
 RMSE_ukf = zeros(2, TrackNum);

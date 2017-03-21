@@ -2,7 +2,7 @@
 TrackNum = 3;
 
 % Generate observations
-%DataList = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, 0.2, 2, 15, 1);
+DataList = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, 0.3, 2, 10, 1);
 RMSE_ekf = zeros(2, TrackNum);
 
 % Number of simulations
@@ -18,7 +18,7 @@ for sim = 1:SimNum
     % Initiate KF parameters
      n=4;      %number of state
      q=0.01;    %std of process 
-     r=0.2;    %std of measurement
+     r=0.3;    %std of measurement
      s.Q=[1^3/3, 0, 1^2/2, 0;  0, 1^3/3, 0, 1^2/2; 1^2/2, 0, 1, 0; 0, 1^2/2, 0, 1]*10*q^2; % covariance of process
      s.R=r^2*eye(n/2);        % covariance of measurement  
      s.sys=(@(x)[x(1)+ x(3); x(2)+x(4); x(3); x(4)]);  % assuming measurements arrive 1 per sec
@@ -192,7 +192,7 @@ for sim = 1:SimNum
         
         del_tracks = 0;
         for t = 1:ConfTrackNum
-            if(TrackListPF{t}.TrackObj.pf.ExistProb<0.3)
+            if(TrackListPF{t}.TrackObj.pf.ExistProb<0.1)
                 TrackListPF{t} = [];
                 del_tracks = del_tracks + 1;
                 del_flag = 1;

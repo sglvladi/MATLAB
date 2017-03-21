@@ -267,7 +267,7 @@ classdef ParticleFilterMin2
         end
         
         function pf = PredictMulti(obj, pf)
-             Pdeath =  0.1;
+             Pdeath =  0.005;
              pf.ExistProb = (1 - Pdeath)*pf.ExistProb;
              nx = size(pf.particles,1);               % number of states
              ny = size(pf.z,1);
@@ -293,7 +293,7 @@ classdef ParticleFilterMin2
             
             if(pf.clutter_flag)
                 % Expected likelihood variables 
-                GateLevel   = 9;
+                GateLevel   = 10;
                 PG          = 0.989;      % probability of Gating
                 PD          = 0.8;      % probability of Detection
                 PointNum = size(pf.z,2); % number of measurements
@@ -347,12 +347,12 @@ classdef ParticleFilterMin2
                 pf.z_pred = mean(trans_parts,2);
                 %% Compute Association Likelihoods 
                 z_pred = pf.obs_model(pf.particles(:,:));
-                pf.Li = zeros(pf.Np, ValidDataPointNum);
+                Li = zeros(pf.Np, ValidDataPointNum);
                 try
                     for i = 1:ValidDataPointNum;
-                        pf.Li(:,i) = mvnpdf(z_pred', pf.z(:,i)', pf.R);
+                        Li(:,i) = mvnpdf(z_pred', z(:,i)', pf.R);
                     end
-                    pf.Li = sum(pf.Li, 1)/pf.Np;
+                    pf.Li = sum(Li, 1)/pf.Np;
                 catch
                     disp('Association Likelihood error!!');
                 end
@@ -421,10 +421,12 @@ classdef ParticleFilterMin2
             % Compute estimated state
             pf.xhk(:,1) = sum(bsxfun(@times, pf.w(1,:)', pf.particles(:,:)),2);
             
-            c = sum(pf.betta(2:end))*pf.ExistProb + pf.betta(1)*(1-pf.ExistProb);
+            %c = sum(Li(:,1:end))*pf.ExistProb + sum(Li(:,1))*(1-pf.ExistProb);%sum(pf.betta(1:end))*pf.ExistProb + pf.betta(1)*(1-pf.ExistProb);
+            c = sum(pf.betta(1:end))*pf.ExistProb + pf.betta(1)*(1-pf.ExistProb);
             % Update existence probability
             if(pf.clutter_flag)
-                pf.ExistProb = (sum(pf.betta(2:end))*pf.ExistProb)/c;
+                %pf.ExistProb = (sum(Li(:,1:end))*pf.ExistProb)/c;%(sum(pf.betta(1:end))*pf.ExistProb)/c; %1-(pf.betta(1)*(1-pf.ExistProb))/c;
+                pf.ExistProb = 1-(pf.betta(1)*(1-pf.ExistProb))/c;%(sum(pf.betta(1:end))*pf.ExistProb)/c; 1-(pf.betta(1)*(1-pf.ExistProb))/c;
                 %pf.ExistProb = (1-pf.ExistProb)*sum(Li(:,2:end))/(sum(Li(:,1))+sum(Li(:,2:end))) + pf.ExistProb; 
                 disp(pf.ExistProb);
             end
@@ -432,8 +434,8 @@ classdef ParticleFilterMin2
         end
         
         function pf = PredictSearch(obj, pf)
-            Pbirth = 0.005;
-            Pdeath =  0.1;
+            Pbirth = 0.01;
+            Pdeath =  0.005;
             nx = size(pf.particles,1);               % number of states
             ny = size(pf.z,1);
             k = pf.k;
@@ -458,7 +460,7 @@ classdef ParticleFilterMin2
             
             if(pf.clutter_flag)
                 % Expected likelihood variables 
-                GateLevel   = 9;
+                GateLevel   = 10;
                 PG          = 0.989;      % probability of Gating
                 PD          = 0.8;      % probability of Detection
                 PointNum = size(pf.z,2); % number of measurements
@@ -546,14 +548,20 @@ classdef ParticleFilterMin2
                 % Calculate new weights according to expected likelihood
                 if(pf.ExistProb<0.9)
                     wk = pf.w .* sum(Li(:,:),2);
-                    pf.ExistProb = (1-pf.ExistProb)*sum(Li(:,2:end))/(sum(Li(:,1))+sum(Li(:,2:end))) + pf.ExistProb; 
+                    Li_mean = mean(Li,1);
+                    c = sum(Li_mean(1:end))*pf.ExistProb + sum(Li_mean(1))*(1-pf.ExistProb);
+                    pf.ExistProb = (sum(Li_mean(2:end))*pf.ExistProb)/c;
+                    %pf.ExistProb = (1-pf.ExistProb)*sum(Li(:,2:end))/(sum(Li(:,1))+sum(Li(:,2:end))) + pf.ExistProb; 
                     disp(pf.ExistProb);
                 else
                     % When promoting a track, condition on the most likely
                     % measurement to avoid multi-modality
                     [betta_max, betta_max_ind]=max(betta);
                     wk = pf.w .* Li(:,betta_max_ind);
-                    pf.ExistProb = sum(Li(:,2:end))/(sum(Li(:,1))+sum(Li(:,2:end))); 
+                    Li_mean = mean(Li,1);
+                    c = sum(Li_mean(1:end))*pf.ExistProb + sum(Li_mean(1))*(1-pf.ExistProb);
+                    pf.ExistProb = (sum(Li_mean(2:end))*pf.ExistProb)/c;
+                    %pf.ExistProb = sum(Li(:,2:end))/(sum(Li(:,1))+sum(Li(:,2:end))); 
                     disp(pf.ExistProb);
                 end
 

@@ -140,13 +140,16 @@ Li = zeros(PointNum, TrackNum);
         catch
             disp('error');
         end
-        S = TrackList{j}.TrackObj.pf.S;
+        %S = TrackList{j}.TrackObj.pf.S;
         
-        Li(:,j) = mvnpdf(z', z_pred', S)*PD;
-        a=5;
+        %Li_i(:,j) = mvnpdf(z', z_pred', S)*PD;
+        %[Li(:,j),TrackList{j}.TrackObj.pf.Li']
         for i=1:size(ValidDataInd,2)
-        %    Li(ValidDataInd(1,i),j) = TrackList{j}.TrackObj.pf.Li(1,i)'*PD;
+            Li(ValidDataInd(1,i),j) = TrackList{j}.TrackObj.pf.Li(1,i)'*PD;
         end
+        %[Li_i(:,j),Li(:,j)]
+        
+        %a=5;
     end
 %end
 %Li(PointNum+1,:) = ones(1, size(Li,2))*bettaNTFA*(1-PD*PG);
