@@ -2,7 +2,7 @@
 TrackNum = 3;
 
 % Generate observations
-[DataList,x1,y1] = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, 0.2, 2, 30, 1);
+%[DataList,x1,y1] = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, 0.1, 2, 100, 1);
 RMSE_ekf = zeros(2, TrackNum);
 
 % Number of simulations
@@ -10,13 +10,13 @@ SimNum = 1
 
 % Show plots of data
 ShowPlots = 1;
-SkipFrames = 5; % Skip n frames between consecutive plots (speed-up)
+SkipFrames = 0; % Skip n frames between consecutive plots (speed-up)
 for sim = 1:SimNum
 
     % Initiate KF parameters
      n=4;      %number of state
      q=0.01;    %std of process 
-     r=0.2;    %std of measurement
+     r=0.1;    %std of measurement
      s.Q=[1^3/3, 0, 1^2/2, 0;  0, 1^3/3, 0, 1^2/2; 1^2/2, 0, 1, 0; 0, 1^2/2, 0, 1]*q^2; % covariance of process
      s.R=r^2*eye(n/2);        % covariance of measurement  
      s.sys=(@(x)[x(1)+ x(3); x(2)+x(4); x(3); x(4)]);  % assuming measurements arrive 1 per sec
@@ -74,7 +74,7 @@ for sim = 1:SimNum
     nu = 4;                                           % size of the vector of process noise
     %sigma_u = q;
     %cov_u = [Dt^3/3, 0, Dt^2/2, 0;  0, Dt^3/3, 0, Dt^2/2; Dt^2/2, 0, Dt, 0; 0, Dt^2/2, 0, 1]*sigma_u^2;
-    gen_sys_noise_cch = @(u) mvnrnd(zeros(size(u,2), nu), diag([0,0,q^2,0.16^2])); 
+    gen_sys_noise_cch = @(u) mvnrnd(zeros(size(u,2), nu), diag([0,0,q^2,0.3^2])); 
     % PDF of observation noise and noise generator function
     nv = 2;                                           % size of the vector of observation noise
     sigma_v = r;
@@ -176,7 +176,7 @@ for sim = 1:SimNum
         end
         % Compute New Track/False Alarm density
         bettaNTFA = sum(ValidationMatrix(:))/tot_gate_area;
-        [TrackListPF] = JPDAF_EHM_PF_Update(TrackListPF, tempDataList, ValidationMatrix', bettaNTFA);
+        [TrackListPF] = JPDAF_EHM_PF_Update(TrackListPF, tempDataList, ValidationMatrix', bettaNTFA, 0);
         TrackNum = size(TrackList,2);
         %store Logs
         for j=1:TrackNum,

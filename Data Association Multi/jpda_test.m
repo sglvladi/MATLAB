@@ -75,7 +75,7 @@ for sim = 1:SimNum
     end;
 
     % Create UKF instance to perform Track prediction in Observation Association function 
-    ekf = UKalmanFilter(TrackObj, 0.5, 1, 2);
+    ekf = EKalmanFilter(TrackObj);
 
     img = imread('maze.png');
 
@@ -95,8 +95,8 @@ for sim = 1:SimNum
 
         fprintf('Iteration = %d/\n',i);
         [TrackList, ValidationMatrix, bettaNTFA] = Observation_Association(TrackList, DataList(:,:,i), ekf);
-        %TrackList = JPDAF_EKF_Update(TrackList, DataList(:,:,i), ValidationMatrix', bettaNTFA);
-        TrackList = JPDAF_UKF_Update(TrackList, DataList(:,:,i), ValidationMatrix', bettaNTFA);
+        TrackList = JPDAF_EKF_Update(TrackList, DataList(:,:,i), ValidationMatrix', bettaNTFA);
+        %TrackList = JPDAF_UKF_Update(TrackList, DataList(:,:,i), ValidationMatrix', bettaNTFA);
         %store Logs
         for j=1:TrackNum,
             Logs{j}.xV_ekf(:,i) = TrackList{j}.TrackObj.x;

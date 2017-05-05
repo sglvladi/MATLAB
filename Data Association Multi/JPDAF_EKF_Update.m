@@ -81,7 +81,7 @@ for c=1:size(clusters,2)
     NetList{c}.HypProb = [bettaNTFA];
     [NetList{c}.HypMap, NetList{c}.HypProb] = buildHyp(NetList{c}.HypMap, NetList{c}.HypProb, Li, ClustTracks, ValidationMatrix, [], bettaNTFA);
 end
-clusters(1)
+%clusters(1)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % loop throught all tracks
 for i=1:TrackNum,

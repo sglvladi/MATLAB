@@ -1,4 +1,4 @@
-%   buildEHMnet2.m                              Author: Lyudmil Vladimirov
+%   buildEHMnet_fast.m                              Author: Lyudmil Vladimirov
 %   ======================================================================>
 %   Functionality: 
 %       Build EHM net and compute respective association probabilities (betta).
@@ -290,8 +290,15 @@ end
 for j = 1:PointNum
     betta(j,:) = betta(j,:)/sum(betta(j,:),2);
 end
+betta = betta
+betta_rescaled = betta./(betta(:,1)*ones(1,TrackNum))
+betta_rescaled_reduced = betta_rescaled(:, 2:end)
+betta_modified = [ones(1, TrackNum-1); betta_rescaled_reduced]
+betta_modified_transposed = betta_modified'
+betta_transpose = betta_modified_transposed./(sum(betta_modified_transposed,2)*ones(1,PointNum+1))
 %betta = betta
-betta_trans = [ones(1,size(betta,2)-1)-sum(betta(:,2:end),1); betta(:,2:end)];
+betta_trans = [ones(1,size(betta,2)-1)-sum(betta(:,2:end),1); betta(:,2:end)]'
 NetObj.betta = betta;
-NetObj.betta_trans = betta_trans';
+NetObj.betta_trans = betta_transpose;
+
 %end

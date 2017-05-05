@@ -148,7 +148,7 @@ for c=1:size(ClusterList,2)
     Cluster = ClusterList{c};
     ClustMeasIndList = Cluster.MeasIndList;
     ClustTrackIndList = Cluster.TrackIndList;
-    NetList{c} = buildEHMnet2(ValidationMatrix(ClustMeasIndList', ClustTrackIndList), [ones(size(Li(ClustMeasIndList', ClustTrackIndList),1), 1)*bettaNTFA*(1-PD*PG),Li(ClustMeasIndList', ClustTrackIndList)]);
+    NetList{c} = buildEHMnet_fast(ValidationMatrix(ClustMeasIndList', ClustTrackIndList), [ones(size(Li(ClustMeasIndList', ClustTrackIndList),1), 1)*bettaNTFA*(1-PD*PG),Li(ClustMeasIndList', ClustTrackIndList)]);
 end
 
 %NetObj = buildEHMnet(ValidationMatrix, Li);%(ClustMeasIndList', ClustTrackIndList)
@@ -206,7 +206,7 @@ for i=1:TrackNum,
         ClustTrackInd = find(ClusterList{cluster_id}.TrackIndList==i)+1; % T1 is the false alarm
 
         % Extract betta for target
-        betta = NetObj.betta(ClustMeasIndList,ClustTrackInd)';
+        betta = NetObj.betta_trans(ClustTrackInd-1,:);
     else
         betta = [];
     end
@@ -214,9 +214,9 @@ for i=1:TrackNum,
     %------------------------------------------------
     % update
     if(size(betta,1)>0)
-        tot_innov_err    = innov_err*betta(1:ValidDataPointNum)';
-        Pgag    = W*((innov_err.*betta(ones(ObsDim,1),1:ValidDataPointNum))*innov_err' - tot_innov_err*tot_innov_err')*W';
-        Pnew    = (1-sum(betta,2))*P_pred + (sum(betta,2))*Pc + Pgag;
+        tot_innov_err    = innov_err*betta(2:ValidDataPointNum+1)';
+        Pgag    = W*((innov_err.*betta(ones(ObsDim,1),2:ValidDataPointNum+1))*innov_err' - tot_innov_err*tot_innov_err')*W';
+        Pnew    = betta(1)*P_pred + (sum(betta(2:end),2))*Pc + Pgag;
     else
         tot_innov_err    = zeros(size(W,2),1);
         Pgag    = 0;

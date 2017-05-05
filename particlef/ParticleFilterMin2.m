@@ -118,10 +118,30 @@ classdef ParticleFilterMin2
             end
             
             if isfield(prop,'kf')
-                fprintf('KF provided... Switching to Optimal proposal mode.');
+                fprintf('KF provided... Switching to Optimal proposal mode.\n');
                 prop.optimal_prop_flag=1;
             else
                 prop.optimal_prop_flag=0;
+            end
+            
+            if ~isfield(prop,'Pdeath')
+                fprintf('Probability Pdeath missing... Assumming Pdeath = 0.05.\n');
+                prop.Pdeath = 0.005;
+            end
+            
+            if ~isfield(prop,'PD')
+                fprintf('Probability PD missing... Assumming PD = 0.9.\n');
+                prop.PD = 0.9;
+            end
+            
+            if ~isfield(prop,'PG')
+                fprintf('Probability PG missing... Assumming PG = 0.989.\n');
+                prop.PG = 0.989;
+            end
+            
+            if ~isfield(prop,'GateLevel')
+                fprintf('GateLevel missing... Assumming GateLevel = 10.\n');
+                prop.GateLevel = 10;
             end
             
             obj.pf = prop;
@@ -152,9 +172,9 @@ classdef ParticleFilterMin2
             
             if(pf.clutter_flag)
                 % Expected likelihood variables 
-                GateLevel   = 9;
-                PG          = 0.989;      % probability of Gating
-                PD          = 0.8;      % probability of Detection
+                GateLevel   = pf.GateLevel;
+                PG          = pf.PG;      % probability of Gating
+                PD          = pf.PD;      % probability of Detection
                 PointNum = size(pf.z,2); % number of measurements
                 ObsDim = size(pf.z,1); % measurement dimensions
                 C   = pi; % volume of the 2-dimensional unit hypersphere    
@@ -196,9 +216,9 @@ classdef ParticleFilterMin2
         function pf = Update(obj, pf)
             if(pf.clutter_flag)
                 % Expected likelihood variables 
-                GateLevel   = 10;
-                PG          = 0.989;      % probability of Gating
-                PD          = 0.8;      % probability of Detection
+                GateLevel   = pf.GateLevel;
+                PG          = pf.PG;      % probability of Gating
+                PD          = pf.PD;      % probability of Detection
                 PointNum    = size(pf.z,2); % number of measurements
                 ObsDim      = size(pf.z,1); % measurement dimensions
                 C           = pi; % volume of the 2-dimensional unit hypersphere
@@ -267,7 +287,7 @@ classdef ParticleFilterMin2
         end
         
         function pf = PredictMulti(obj, pf)
-             Pdeath =  0.005;
+             Pdeath =  pf.Pdeath;
              pf.ExistProb = (1 - Pdeath)*pf.ExistProb;
              nx = size(pf.particles,1);               % number of states
              ny = size(pf.z,1);
@@ -293,9 +313,9 @@ classdef ParticleFilterMin2
             
             if(pf.clutter_flag)
                 % Expected likelihood variables 
-                GateLevel   = 10;
-                PG          = 0.989;      % probability of Gating
-                PD          = 0.8;      % probability of Detection
+                GateLevel   = pf.GateLevel;
+                PG          = pf.PG;      % probability of Gating
+                PD          = pf.PD;      % probability of Detection
                 PointNum = size(pf.z,2); % number of measurements
                 ObsDim = size(pf.z,1); % measurement dimensions
                 C   = pi; % volume of the 2-dimensional unit hypersphere    
@@ -333,7 +353,7 @@ classdef ParticleFilterMin2
                 end
                 % Get valid measurement data indices
                 DataInd = find(pf.Validation_matrix(1,:));
-
+                pf.ValidDataInd = DataInd;
                 % extract measurements
                 z = pf.z(:,DataInd);
                 [ObsDim,ValidDataPointNum] = size(z);
@@ -360,8 +380,8 @@ classdef ParticleFilterMin2
         end
         
         function pf = UpdateMulti(obj, pf)
-            PG          = 0.989;      % probability of Gating
-            PD          = 0.8;      % probability of Detection
+            PG          = pf.PG;      % probability of Gating
+            PD          = pf.PD;      % probability of Detection
             % Get valid measurement data indices
             DataInd = find(pf.Validation_matrix(1,:));
 
@@ -426,7 +446,7 @@ classdef ParticleFilterMin2
             % Update existence probability
             if(pf.clutter_flag)
                 %pf.ExistProb = (sum(Li(:,1:end))*pf.ExistProb)/c;%(sum(pf.betta(1:end))*pf.ExistProb)/c; %1-(pf.betta(1)*(1-pf.ExistProb))/c;
-                pf.ExistProb = 1-(pf.betta(1)*(1-pf.ExistProb))/c;%(sum(pf.betta(1:end))*pf.ExistProb)/c; 1-(pf.betta(1)*(1-pf.ExistProb))/c;
+                pf.ExistProb = (sum(pf.betta(1:end))*pf.ExistProb)/c;% 1-(pf.betta(1)*(1-pf.ExistProb))/c;
                 %pf.ExistProb = (1-pf.ExistProb)*sum(Li(:,2:end))/(sum(Li(:,1))+sum(Li(:,2:end))) + pf.ExistProb; 
                 disp(pf.ExistProb);
             end
@@ -435,7 +455,7 @@ classdef ParticleFilterMin2
         
         function pf = PredictSearch(obj, pf)
             Pbirth = 0.01;
-            Pdeath =  0.005;
+            Pdeath =  pf.Pdeath;
             nx = size(pf.particles,1);               % number of states
             ny = size(pf.z,1);
             k = pf.k;
@@ -460,9 +480,9 @@ classdef ParticleFilterMin2
             
             if(pf.clutter_flag)
                 % Expected likelihood variables 
-                GateLevel   = 10;
-                PG          = 0.989;      % probability of Gating
-                PD          = 0.8;      % probability of Detection
+                GateLevel   = pf.GateLevel;
+                PG          = pf.PG;      % probability of Gating
+                PD          = pf.PD;      % probability of Detection
                 PointNum = size(pf.z,2); % number of measurements
                 ObsDim = size(pf.z,1); % measurement dimensions
                 C   = pi; % volume of the 2-dimensional unit hypersphere    
@@ -494,19 +514,39 @@ classdef ParticleFilterMin2
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 % thresholding/ gating
                 pf.Validation_matrix = DistM < GateLevel;
-                if(isempty(find(pf.Validation_matrix,1)))
-                    a=5;
-                end
+                % Get valid measurement data indices
+                DataInd = find(pf.Validation_matrix(1,:));
+                pf.ValidDataInd = DataInd;
+                z = pf.z(:,DataInd);
+                [ObsDim,ValidDataPointNum] = size(z);
+                
+                lambda = ValidDataPointNum/pf.V_k; % expected rate of clutter per unit region (2 over entire volume)
+                C1 = PD*PG*poisspdf(ValidDataPointNum-1,lambda*pf.V_k);%/pf.V_k^(ValidDataPointNum-1);
+                C2 = (1-PD*PG)*poisspdf(ValidDataPointNum,lambda*pf.V_k);%/pf.V_k^(ValidDataPointNum);
+                C11 = C1/(C1+C2);
+                C22 = C2/(C1+C2);
+                
                 pf.z_pred = mean(trans_parts,2);
+                %% Compute Association Likelihoods 
+                z_pred = pf.obs_model(pf.particles(:,:));
+                Li = zeros(pf.Np, ValidDataPointNum);
+                try
+                    for i = 1:ValidDataPointNum
+                        Li(:,i) = mvnpdf(z_pred', z(:,i)', pf.R);
+                    end
+                    pf.Li = sum(Li, 1)/pf.Np;
+                catch
+                    disp('Association Likelihood error!!');
+                end
             end
         end
         
         function pf = UpdateSearch(obj, pf)
             if(pf.clutter_flag)
                 % Expected likelihood variables 
-                GateLevel   = 10;
-                PG          = 0.989;      % probability of Gating
-                PD          = 0.8;      % probability of Detection
+                GateLevel   = pf.GateLevel;
+                PG          = pf.PG;      % probability of Gating
+                PD          = pf.PD;      % probability of Detection
                 PointNum    = size(pf.z,2); % number of measurements
                 ObsDim      = size(pf.z,1); % measurement dimensions
                 C           = pi; % volume of the 2-dimensional unit hypersphere
@@ -514,7 +554,7 @@ classdef ParticleFilterMin2
                 
                 % Get valid measurement data indices
                 DataInd = find(pf.Validation_matrix(1,:));
-                
+                pf.ValidDataInd = DataInd;
                 % extract measurements
                 z = pf.z(:,DataInd);
                 [ObsDim,ValidDataPointNum] = size(z);
@@ -532,41 +572,36 @@ classdef ParticleFilterMin2
             wk   = zeros(size(pf.w(:)));     % = zeros(Np,1);
             clutter_flag = pf.clutter_flag;
             
-            % Update weights       
-            if(~clutter_flag)    % If no clutter is present
-                % Calculate new weights according to observation likelihood
-                wk = pf.w .* pf.obs(k, pf.z, pf.particles(:,:));
+            %% Compute Association Likelihoods 
+            z_pred = pf.obs_model(pf.particles(:,:));
+            Li = zeros(size(z_pred,2),ValidDataPointNum+1);
+            try
+                Li(:,1) = ones(size(z_pred,2),1)*pf.betta(1);%*C22/(pf.V_k^(ValidDataPointNum));
+            catch
+                disp('error');
+            end
+            try
+                if(size(pf.betta,2)~=1)
+                    for i = 1:size(z, 2);
+                        Li(:,i+1) = mvnpdf(z_pred', z(:,i)', pf.R)*pf.betta(i+1);%*C11/(pf.V_k^(ValidDataPointNum-1)*ValidDataPointNum);
+                    end
+                end
+            catch
+                disp('Association Likelihood error!!');
+            end
+            % Calculate new weights according to expected likelihood
+            if(pf.ExistProb<0.9)
+                wk = pf.w .* sum(Li(:,:),2);
             else
-                z_pred = pf.obs_model(pf.particles(:,:));
-                %Li_i = mvnpdf(z(:,:)', z_pred', pf.R);
-                Li = zeros(size(z_pred,2),size(z, 2)+1);
-                Li(:,1) = C22/(pf.V_k^(ValidDataPointNum));
-                for i = 1:size(z, 2);
-                    Li(:,i+1) = mvnpdf(z_pred', z(:,i)', pf.R)*C11/(pf.V_k^(ValidDataPointNum-1)*ValidDataPointNum);
-                end
-
-                % Calculate new weights according to expected likelihood
-                if(pf.ExistProb<0.9)
-                    wk = pf.w .* sum(Li(:,:),2);
-                    Li_mean = mean(Li,1);
-                    c = sum(Li_mean(1:end))*pf.ExistProb + sum(Li_mean(1))*(1-pf.ExistProb);
-                    pf.ExistProb = (sum(Li_mean(2:end))*pf.ExistProb)/c;
-                    %pf.ExistProb = (1-pf.ExistProb)*sum(Li(:,2:end))/(sum(Li(:,1))+sum(Li(:,2:end))) + pf.ExistProb; 
-                    disp(pf.ExistProb);
-                else
-                    % When promoting a track, condition on the most likely
-                    % measurement to avoid multi-modality
-                    [betta_max, betta_max_ind]=max(betta);
-                    wk = pf.w .* Li(:,betta_max_ind);
-                    Li_mean = mean(Li,1);
-                    c = sum(Li_mean(1:end))*pf.ExistProb + sum(Li_mean(1))*(1-pf.ExistProb);
-                    pf.ExistProb = (sum(Li_mean(2:end))*pf.ExistProb)/c;
-                    %pf.ExistProb = sum(Li(:,2:end))/(sum(Li(:,1))+sum(Li(:,2:end))); 
-                    disp(pf.ExistProb);
-                end
-
-            end  
-            %end;
+                % When promoting a track, condition on the most likely
+                % measurement to avoid multi-modality
+                [betta_max, betta_max_ind]=max(betta);
+                wk = pf.w .* Li(:,betta_max_ind);
+            end
+            
+            % Calculate new weights according to expected likelihood
+            %wk = pf.w .* sum(Li(:,:),2); 
+            
             % Normalize weight vector
             pf.w = wk./sum(wk);
             
@@ -583,9 +618,17 @@ classdef ParticleFilterMin2
 %             end
             
             % Compute estimated state
-            pf.xhk = zeros(nx,1);
-            %for i = 1:Np
-            pf.xhk(:,1) = sum(bsxfun(@times, pf.w(1,:)', pf.particles(:,:)),2);             
+            pf.xhk(:,1) = sum(bsxfun(@times, pf.w(1,:)', pf.particles(:,:)),2);
+            
+            %c = sum(Li(:,1:end))*pf.ExistProb + sum(Li(:,1))*(1-pf.ExistProb);%sum(pf.betta(1:end))*pf.ExistProb + pf.betta(1)*(1-pf.ExistProb);
+            c = sum(pf.betta(1:end))*pf.ExistProb + pf.betta(1)*(1-pf.ExistProb);
+            % Update existence probability
+            if(pf.clutter_flag)
+                %pf.ExistProb = (sum(Li(:,1:end))*pf.ExistProb)/c;%(sum(pf.betta(1:end))*pf.ExistProb)/c; %1-(pf.betta(1)*(1-pf.ExistProb))/c;
+                pf.ExistProb = (sum(pf.betta(1:end))*pf.ExistProb)/c;% 1-(pf.betta(1)*(1-pf.ExistProb))/c;
+                %pf.ExistProb = (1-pf.ExistProb)*sum(Li(:,2:end))/(sum(Li(:,1))+sum(Li(:,2:end))) + pf.ExistProb; 
+                disp(pf.ExistProb);
+            end           
             
         end
         

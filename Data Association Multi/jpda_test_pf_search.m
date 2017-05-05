@@ -2,7 +2,7 @@
 TrackNum = 3;
 
 % Generate observations
-DataList = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, 0.3, 2, 10, 1);
+DataList = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, 0.1, 2, 10, 1);
 RMSE_ekf = zeros(2, TrackNum);
 
 % Number of simulations
@@ -18,7 +18,7 @@ for sim = 1:SimNum
     % Initiate KF parameters
      n=4;      %number of state
      q=0.01;    %std of process 
-     r=0.3;    %std of measurement
+     r=0.1;    %std of measurement
      s.Q=[1^3/3, 0, 1^2/2, 0;  0, 1^3/3, 0, 1^2/2; 1^2/2, 0, 1, 0; 0, 1^2/2, 0, 1]*10*q^2; % covariance of process
      s.R=r^2*eye(n/2);        % covariance of measurement  
      s.sys=(@(x)[x(1)+ x(3); x(2)+x(4); x(3); x(4)]);  % assuming measurements arrive 1 per sec
@@ -76,7 +76,7 @@ for sim = 1:SimNum
     nu = 4;                                           % size of the vector of process noise
     %sigma_u = q;
     %cov_u = [Dt^3/3, 0, Dt^2/2, 0;  0, Dt^3/3, 0, Dt^2/2; Dt^2/2, 0, Dt, 0; 0, Dt^2/2, 0, 1]*sigma_u^2;
-    gen_sys_noise_cch = @(u) mvnrnd(zeros(size(u,2), nu), diag([0,0,q^2,0.3^2])); 
+    gen_sys_noise_cch = @(u) mvnrnd(zeros(size(u,2), nu), diag([0,0,q^2,0.16^2])); 
     % PDF of observation noise and noise generator function
     nv = 2;                                           % size of the vector of observation noise
     sigma_v = r;
@@ -122,7 +122,7 @@ for sim = 1:SimNum
     %pf.kf = UKalmanFilter(s, 0.5, 0, 2);
 
     % Initiate Tracklist
-    TrackList = [];
+    TrackListSearch = [];
     TrackListPF = [];
 
     %% Estimated State container PF
@@ -131,6 +131,7 @@ for sim = 1:SimNum
     pf.ExistProb = 0.5;
     pf_search = ParticleFilterMin2(pf);
     pf_search.pf.multi_flag = 0;
+    TrackListSearch{1}.TrackObj = pf_search;
     
     xh = zeros(TrackNum,nx, N);
     RMSE = zeros(TrackNum,N);
@@ -187,7 +188,7 @@ for sim = 1:SimNum
         end
         % Compute New Track/False Alarm density
         bettaNTFA = sum(ValidationMatrix(:))/tot_gate_area;
-        [TrackListPF] = JPDAF_EHM_PF_Update(TrackListPF, tempDataList, ValidationMatrix', bettaNTFA);
+        [TrackListPF] = JPDAF_EHM_PF_Update(TrackListPF, tempDataList, ValidationMatrix', bettaNTFA, 0);
         %TrackNum = size(TrackList,2);
         
         del_tracks = 0;
@@ -205,16 +206,22 @@ for sim = 1:SimNum
         
         invalidDataInd = find((sum(ValidationMatrix,1)==0));
         % Process search track
-        if(pf_search.pf.ExistProb>0.9)
+        if(TrackListSearch{1}.TrackObj.pf.ExistProb>0.9)
             disp('Search Track Exist prob:');
-            pf_search.pf.z = tempDataList(:, invalidDataInd);
-            pf_search.pf = pf_search.PredictSearch(pf_search.pf);
-            pf_search.pf = pf_search.UpdateSearch(pf_search.pf);
+            TrackListSearch{1}.TrackObj.pf.z = tempDataList(:, invalidDataInd);
+            TrackListSearch{1}.TrackObj.pf = TrackListSearch{1}.TrackObj.PredictSearch(TrackListSearch{1}.TrackObj.pf);
+            ValidationMatrix = TrackListSearch{1}.TrackObj.pf.Validation_matrix;
+            tot_gate_area = tot_gate_area + TrackListSearch{1}.TrackObj.pf.V_k;
+            bettaNTFA = sum(ValidationMatrix(:))/tot_gate_area;
             
-            if(pf_search.pf.ExistProb>0.9)
+            [TrackListSearch] = JPDAF_EHM_PF_Update(TrackListSearch, tempDataList, ValidationMatrix', bettaNTFA,1);
+            
+            %TrackListSearch{1}.pf = TrackListSearch{1}.UpdateSearch(TrackListSearch{1}.pf);
+            
+            if(TrackListSearch{1}.TrackObj.pf.ExistProb>0.9)
                 % Promote new track
                 ConfTrackNum = ConfTrackNum + 1;
-                TrackListPF{ConfTrackNum}.TrackObj = pf_search;
+                TrackListPF{ConfTrackNum}.TrackObj = TrackListSearch{1}.TrackObj;
 
                 % Create new search track
                 pf.gen_x0 = @(Np) [10*rand(Np,1),10*rand(Np,1), mvnrnd(zeros(Np,1), 2*sigma_v^2), 2*pi*rand(Np,1)];
@@ -222,21 +229,26 @@ for sim = 1:SimNum
                 pf.ExistProb = 0.5;
                 pf_search = ParticleFilterMin2(pf);
                 pf_search.pf.multi_flag = 0;
-
+                TrackListSearch{1}.TrackObj = pf_search;
                 disp('Promoted one track');
             end
         else
             disp('Search Track Exist prob:');
-            pf_search.pf.z = tempDataList(:, invalidDataInd);
-            pf_search.pf = pf_search.PredictSearch(pf_search.pf);
-            pf_search.pf = pf_search.UpdateSearch(pf_search.pf);
-            if(pf_search.pf.ExistProb<0.1)
+            TrackListSearch{1}.TrackObj.pf.z = tempDataList(:, invalidDataInd);
+            TrackListSearch{1}.TrackObj.pf = TrackListSearch{1}.TrackObj.PredictSearch(TrackListSearch{1}.TrackObj.pf);
+            ValidationMatrix = TrackListSearch{1}.TrackObj.pf.Validation_matrix;
+            tot_gate_area = tot_gate_area + TrackListSearch{1}.TrackObj.pf.V_k;
+            bettaNTFA = sum(ValidationMatrix(:))/tot_gate_area;
+            
+            [TrackListSearch] = JPDAF_EHM_PF_Update(TrackListSearch, tempDataList, ValidationMatrix', bettaNTFA,1);
+            if(TrackListSearch{1}.TrackObj.pf.ExistProb<0.1)
                 % Reset the search track
                 pf.gen_x0 = @(Np) [10*rand(Np,1),10*rand(Np,1), mvnrnd(zeros(Np,1), 2*sigma_v^2), 2*pi*rand(Np,1)];
                 %pf.xhk = [s.x_init(1,i),s.x_init(2,i),0,0]';
                 pf.ExistProb = 0.5;
                 pf_search = ParticleFilterMin2(pf);
                 pf_search.pf.multi_flag = 0;
+                TrackListSearch{1}.TrackObj = pf_search;
             end
                 
         end
@@ -275,6 +287,10 @@ for sim = 1:SimNum
                         set(get(get(h2,'Annotation'),'LegendInformation'),'IconDisplayStyle','off'); % Exclude line from legend
                     end
                     h2 = plot(DataList{i}(1,:),DataList{i}(2,:),'k*','MarkerSize', 10);
+                    for j=1:size(DataList{i},2)
+                        txt = num2str(j);
+                        text(DataList{i}(1,j),DataList{i}(2,j),strcat('  ',txt),'HorizontalAlignment','left')
+                    end
                     for j=1:ConfTrackNum,
                         colour = 'r';
                         if(j==2)
@@ -296,7 +312,7 @@ for sim = 1:SimNum
                     %plot search track
                     %h4 = plot(pf_search.pf.xhk(1,:),pf_search.pf.xhk(2,:),'g.-','LineWidth',1);
                     %h4 = plot(pf_search.pf.xhk(1,:),pf_search.pf.xhk(2,:),'go','MarkerSize', 10);
-                    plot(pf_search.pf.particles(1,:),pf_search.pf.particles(2,:),'g.','MarkerSize', 3);
+                    plot(TrackListSearch{1}.TrackObj.pf.particles(1,:),TrackListSearch{1}.TrackObj.pf.particles(2,:),'g.','MarkerSize', 3);
                         % set the y-axis back to normal.
                     set(gca,'ydir','normal');
                     str = sprintf('Estimated state x_{1,k} vs. x_{2,k}');
@@ -370,9 +386,9 @@ for sim = 1:SimNum
                     end
                     h2 = plot(DataList{i}(1,:),DataList{i}(2,:),'k*','MarkerSize', 10);
 
-                    h4 = plot(pf_search.pf.xhk(1,:),pf_search.pf.xhk(2,:),'g.-','LineWidth',1);
-                    h4 = plot(pf_search.pf.xhk(1,:),pf_search.pf.xhk(2,:),'go','MarkerSize', 10);
-                    plot(pf_search.pf.particles(1,:),pf_search.pf.particles(2,:),'g.','MarkerSize', 3);
+                    h4 = plot(TrackListSearch{1}.TrackObj.pf.xhk(1,:),TrackListSearch{1}.TrackObj.pf.xhk(2,:),'g.-','LineWidth',1);
+                    h4 = plot(TrackListSearch{1}.TrackObj.pf.xhk(1,:),TrackListSearch{1}.TrackObj.pf.xhk(2,:),'go','MarkerSize', 10);
+                    plot(TrackListSearch{1}.TrackObj.pf.particles(1,:),TrackListSearch{1}.TrackObj.pf.particles(2,:),'g.','MarkerSize', 3);
                     set(get(get(h4,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
                     % set the y-axis back to normal.
                     set(gca,'ydir','normal');

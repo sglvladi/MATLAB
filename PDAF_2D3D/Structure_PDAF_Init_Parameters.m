@@ -23,7 +23,7 @@ Par.Y3Bounds        = [0 1];    % approximate bounds for measurements in Y2
 Par.TrajNum         = length(Par.TrajIndex); % save this for future use
 Par.Nv              = 0.001;     % noise variance
 Par.dT              = 1/30;     % time between measurements in seconds
-Par.Time            = 5;        % simulation stopping time in seconds
+Par.Time            = 60;        % simulation stopping time in seconds
 
 % Kalman filter properties
 Par.StateVar        = (0.5)^2;  % state variance sqrt(StateVar)/dT

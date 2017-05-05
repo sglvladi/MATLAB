@@ -9,7 +9,11 @@ function [DataList, x, y] = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, q
         for j=1:TrackNum
             x(k,j) = x_true(i,j);
             y(k,j) = y_true(i,j);
-            DataList{k}(:,j) = [ x_true(i,j)+normrnd(0,q), y_true(i,j)+normrnd(0,q)];
+            if(x(k,j)==0&&y(k,j)==0)
+                DataList{k}(:,j) = [ 0, 0];
+            else
+                DataList{k}(:,j) = [ x_true(i,j)+normrnd(0,q), y_true(i,j)+normrnd(0,q)];
+            end
         end
         No_of_clutter = poissrnd(lambda);
         for j=TrackNum+1:No_of_clutter

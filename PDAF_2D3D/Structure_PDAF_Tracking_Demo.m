@@ -49,7 +49,7 @@ for k = 1:size(AllTheData,3),
     TrackList = Structure_PDAF_Track_Update(TrackList,DataList,Par);
     
     % track separation
-    TrackList = Structure_PDAF_Track_Separation(TrackList,DataList,Par);    
+    %TrackList = Structure_PDAF_Track_Separation(TrackList,DataList,Par);    
     
     % start new tracks
     TrackList = Structure_PDAF_Track_Start(TrackList,DataList,Par);
@@ -63,6 +63,6 @@ if Par.RecordOn,  figure, movie(M); end;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % show results
-%Structure_PDAF_Show(DataList,TrackList);
+%Structure_PDAF_Show(TrackShow,Par,TrackList,DataList);
 
 

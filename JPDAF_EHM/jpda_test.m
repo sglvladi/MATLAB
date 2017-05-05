@@ -15,7 +15,7 @@
 TrackNum = size(x_true, 2);
 
 % Generate measurements (including clutter) from ground truth
-[DataList,x1,y1] = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, 0.25, 1, 20,2);
+[DataList,x1,y1] = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, 0.1, 2, 100,1);
 
 % Create variable to store RMSE for each track
 RMSE_ukf = zeros(2, TrackNum);
@@ -33,7 +33,7 @@ for sim = 1:SimNum
     %% Initiate KF parameters
     n=4;      %number of states
     q=0.01;    %std of process 
-    r=0.5;    %std of measurement
+    r=0.1;    %std of measurement
     s.Q=[1^3/3, 0, 1^2/2, 0;  0, 1^3/3, 0, 1^2/2; 1^2/2, 0, 1, 0; 0, 1^2/2, 0, 1]*q^2; % covariance of process
     s.R=r^2*eye(n/2);        % covariance of measurement  
     s.sys=(@(x)[x(1)+ x(3); x(2)+x(4); x(3); x(4)]);  % assuming measurements arrive 1 per sec

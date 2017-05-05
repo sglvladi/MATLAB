@@ -18,7 +18,7 @@
 %   Dependencies: buildEHMnet2.m 
 %   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-function TrackList = JPDAF_EHM_PF_Update(TrackList,DataList, ValidationMatrix, bettaNTFA)
+function TrackList = JPDAF_EHM_PF_Update(TrackList,DataList, ValidationMatrix, bettaNTFA, search)
 
 %% Initiate parameters
 TrackNum    = size(TrackList,2); % Number of targets including FA
@@ -114,7 +114,7 @@ ClusterObj.MeasIndList = [];
 ClusterObj.TrackIndList = [];
 for c=1:size(clusters,2)
     ClusterList{c} = ClusterObj;
-    ClusterList{c}.MeasIndList = fast_unique(clusters{1,c}(:)');
+    ClusterList{c}.MeasIndList = unique(clusters{1,c}(:)');
     
     % If we are currently processing the cluster of unassociated tracks 
     if(isempty(ClusterList{c}.MeasIndList))
@@ -171,7 +171,7 @@ for c=1:size(ClusterList,2)
     catch
         disp('error');
     end
-    NetList{c} = buildEHMnet_fast(ValidationMatrix(ClustMeasIndList', ClustTrackIndList), ClustLi);
+    NetList{c} = buildEHMnet2(ValidationMatrix(ClustMeasIndList', ClustTrackIndList), ClustLi);
 end
 
 %NetObj = buildEHMnet(ValidationMatrix, Li);%(ClustMeasIndList', ClustTrackIndList)
@@ -217,85 +217,19 @@ for i=1:TrackNum,
         % Compute likelihood ratios
         ClustMeasIndList=[];
         for j=1:size(DataInd,2)
-            try
-                ClustMeasIndList(j) = fast_unique(find(ClusterList{cluster_id}.MeasIndList==DataInd(j)));
-            catch
-                disp('error');
-                clusters = {};
-                if(clustering)
-                    % Measurement Clustering
-                    for i=1:TrackNum % Iterate over all tracks 
-                        matched =[];
-                        temp_clust = find(ValidationMatrix(:,i))'; % Extract associated measurements
-
-                        % If track matched with any measurements
-                        if (~isempty(temp_clust))   
-                            % Check if matched measurements are members of any clusters
-                            for j=1:size(clusters,2)
-                                a = ismember(temp_clust, cell2mat(clusters(1,j)));
-                                if (ismember(1,a)~=0)
-                                    matched = [matched, j]; % Store matched cluster ids
-                                end   
-                            end
-
-                            % If only matched with a single cluster, join.
-                            if(size(matched,2)==1) 
-                                clusters{1,matched(1)}=union(cell2mat(clusters(1,matched(1))), temp_clust);
-                            elseif (size(matched,2)>1) % If matched with more that one clusters
-                                matched = sort(matched); % Sort cluster ids
-                                % Start from last cluster, joining each one with the previous
-                                %   and removing the former.  
-                                for match_ind = size(matched,2)-1:-1:1
-                                    clusters{1,matched(match_ind)}=union(cell2mat(clusters(1,matched(match_ind))), cell2mat(clusters(1,matched(match_ind+1))));
-                                    clusters(:,matched(match_ind+1))=[];
-                                end
-                                % Finally, join with associated track.
-                                clusters{1,matched(match_ind)}=union(cell2mat(clusters(1,matched(match_ind))), temp_clust);
-                            else % If not matched with any cluster, then create a new one.
-                                clusters{1,size(clusters,2)+1} = temp_clust;
-                            end
-                        %else if no measurements exists for the given track    
-                %         else
-                %             % Check if an empty measurement cluster already exists 
-                %             for j=1:size(clusters,2)
-                %                 if(isempty(cell2mat(clusters(1,j))))
-                %                     matched = [matched, j]; % Store matched cluster ids
-                %                 end   
-                %             end
-                %             % If the above is true.
-                %             if(size(matched,2)==1) 
-                %                 %Nothing needs to be done
-                %                 %clusters{1,matched(1)}=union(cell2mat(clusters(1,matched(1))), temp_clust); 
-                %             else
-                %                 clusters{1,size(clusters,2)+1} = temp_clust; %create new cluster
-                %             end
-                         end
-                    end
-                else
-                    % Measurement Clustering
-                    for i=1:TrackNum % Iterate over all tracks (including dummy)
-
-                        temp_clust = find(ValidationMatrix(:,i))'; % Extract associated tracks
-
-                        % If measurement matched with any tracks
-                        if (~isempty(temp_clust))
-                            if(~isempty(clusters))
-                                clusters{1,1}= union(clusters{1,1}, temp_clust);
-                            else
-                               clusters{1,1}= temp_clust; 
-                            end
-                        end
-                    end
-                end
-            end
+           ClustMeasIndList(j) = unique(find(ClusterList{cluster_id}.MeasIndList==DataInd(j)));
         end    
         ClustTrackInd = find(ClusterList{cluster_id}.TrackIndList==i); % T1 is the false alarm
 
         % Extract betta for target
-        if(isempty(NetObj.betta_trans(ClustTrackInd, find(NetObj.betta_trans(ClustTrackInd, :)))))
-            disp('error');
-        end
-        TrackList{i}.TrackObj.pf.betta = NetObj.betta_trans(ClustTrackInd, find(NetObj.betta_trans(ClustTrackInd, :)));
+%         if(isempty(NetObj.betta_trans(ClustTrackInd, find(NetObj.betta_trans(ClustTrackInd, :)))))
+%             disp('error');
+%         end
+        [C,ia,ib] = intersect(ClusterList{cluster_id}.MeasIndList(ClustMeasIndList),TrackList{i}.TrackObj.pf.ValidDataInd);
+        i = i;
+        ia = ia;
+        TrackList{i}.TrackObj.pf.ValidDataInd;
+        TrackList{i}.TrackObj.pf.betta = [NetObj.betta_trans(ClustTrackInd,1), NetObj.betta_trans(ClustTrackInd, ia+1)];
     else
         % Else if target was not matched with any clusters, it means it was
         % also not matched with any measurements and thus only the "dummy"
@@ -305,7 +239,10 @@ for i=1:TrackNum,
      
     %------------------------------------------------
     % update
-    TrackList{i}.TrackObj.pf = TrackList{i}.TrackObj.UpdateMulti(TrackList{i}.TrackObj.pf);
-
+    if(search)
+        TrackList{i}.TrackObj.pf = TrackList{i}.TrackObj.UpdateSearch(TrackList{i}.TrackObj.pf);
+    else
+        TrackList{i}.TrackObj.pf = TrackList{i}.TrackObj.UpdateMulti(TrackList{i}.TrackObj.pf);
+    end
     
 end;    % track loop
