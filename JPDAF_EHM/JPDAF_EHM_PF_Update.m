@@ -145,7 +145,7 @@ Li = zeros(PointNum, TrackNum);
         %Li_i(:,j) = mvnpdf(z', z_pred', S)*PD;
         %[Li(:,j),TrackList{j}.TrackObj.pf.Li']
         for i=1:size(ValidDataInd,2)
-            Li(ValidDataInd(1,i),j) = TrackList{j}.TrackObj.pf.Li(1,i)'*PD;
+            Li(ValidDataInd(1,i),j) = TrackList{j}.TrackObj.pf.Li(1,i)'*PD*PG;
         end
         %[Li_i(:,j),Li(:,j)]
         
@@ -171,7 +171,10 @@ for c=1:size(ClusterList,2)
     catch
         disp('error');
     end
-    NetList{c} = buildEHMnet2(ValidationMatrix(ClustMeasIndList', ClustTrackIndList), ClustLi);
+    % Augment ValidationMatrix
+%ValidationMatrix = [ones(1, PointNum); ValidationMatrix']';
+    NetList{c} = buildEHMnet2([ones(1, size(ValidationMatrix(ClustMeasIndList', ClustTrackIndList),1));ValidationMatrix(ClustMeasIndList', ClustTrackIndList)']', ClustLi);
+    %dummy = buildEHMnet2([ones(1, size(ValidationMatrix(ClustMeasIndList', ClustTrackIndList),2));ValidationMatrix(ClustMeasIndList', ClustTrackIndList)'], ClustLi');
 end
 
 %NetObj = buildEHMnet(ValidationMatrix, Li);%(ClustMeasIndList', ClustTrackIndList)

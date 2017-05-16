@@ -8,7 +8,7 @@ RMSE_ekf = zeros(2, TrackNum);
 % Number of simulations
 SimNum = 1
 
-Pbirth = 0.01;
+Pbirth = 0.001;
 
 % Show plots of data
 ShowPlots = 1;
@@ -188,7 +188,7 @@ for sim = 1:SimNum
         end
         % Compute New Track/False Alarm density
         bettaNTFA = sum(ValidationMatrix(:))/tot_gate_area;
-        [TrackListPF] = JPDAF_EHM_PF_Update(TrackListPF, tempDataList, ValidationMatrix', bettaNTFA, 0);
+        [TrackListPF] = JPDAF_TO_EHM_PF_Update(TrackListPF, tempDataList, ValidationMatrix', bettaNTFA, 0);
         %TrackNum = size(TrackList,2);
         
         del_tracks = 0;
@@ -214,7 +214,7 @@ for sim = 1:SimNum
             tot_gate_area = tot_gate_area + TrackListSearch{1}.TrackObj.pf.V_k;
             bettaNTFA = sum(ValidationMatrix(:))/tot_gate_area;
             
-            [TrackListSearch] = JPDAF_EHM_PF_Update(TrackListSearch, tempDataList, ValidationMatrix', bettaNTFA,1);
+            [TrackListSearch] = JPDAF_TO_EHM_PF_Update(TrackListSearch, tempDataList, ValidationMatrix', bettaNTFA,1);
             
             %TrackListSearch{1}.pf = TrackListSearch{1}.UpdateSearch(TrackListSearch{1}.pf);
             
@@ -240,7 +240,7 @@ for sim = 1:SimNum
             tot_gate_area = tot_gate_area + TrackListSearch{1}.TrackObj.pf.V_k;
             bettaNTFA = sum(ValidationMatrix(:))/tot_gate_area;
             
-            [TrackListSearch] = JPDAF_EHM_PF_Update(TrackListSearch, tempDataList, ValidationMatrix', bettaNTFA,1);
+            [TrackListSearch] = JPDAF_TO_EHM_PF_Update(TrackListSearch, tempDataList, ValidationMatrix', bettaNTFA,1);
             if(TrackListSearch{1}.TrackObj.pf.ExistProb<0.1)
                 % Reset the search track
                 pf.gen_x0 = @(Np) [10*rand(Np,1),10*rand(Np,1), mvnrnd(zeros(Np,1), 2*sigma_v^2), 2*pi*rand(Np,1)];
@@ -286,11 +286,7 @@ for sim = 1:SimNum
                         h2 = plot(Logs{j}.sV_ekf(1,i),Logs{j}.sV_ekf(2,i),'bo','MarkerSize', 10);
                         set(get(get(h2,'Annotation'),'LegendInformation'),'IconDisplayStyle','off'); % Exclude line from legend
                     end
-                    h2 = plot(DataList{i}(1,:),DataList{i}(2,:),'k*','MarkerSize', 10);
-                    for j=1:size(DataList{i},2)
-                        txt = num2str(j);
-                        text(DataList{i}(1,j),DataList{i}(2,j),strcat('  ',txt),'HorizontalAlignment','left')
-                    end
+                    
                     for j=1:ConfTrackNum,
                         colour = 'r';
                         if(j==2)
@@ -313,7 +309,15 @@ for sim = 1:SimNum
                     %h4 = plot(pf_search.pf.xhk(1,:),pf_search.pf.xhk(2,:),'g.-','LineWidth',1);
                     %h4 = plot(pf_search.pf.xhk(1,:),pf_search.pf.xhk(2,:),'go','MarkerSize', 10);
                     plot(TrackListSearch{1}.TrackObj.pf.particles(1,:),TrackListSearch{1}.TrackObj.pf.particles(2,:),'g.','MarkerSize', 3);
-                        % set the y-axis back to normal.
+                    
+                    % Plot measurements
+                    h2 = plot(DataList{i}(1,:),DataList{i}(2,:),'k*','MarkerSize', 10);
+                    for j=1:size(DataList{i},2)
+                        txt = num2str(j);
+                        text(DataList{i}(1,j)+0.05,DataList{i}(2,j)-0.05,strcat('  ',txt),'HorizontalAlignment','left')
+                    end
+                    
+                    % set the y-axis back to normal.
                     set(gca,'ydir','normal');
                     str = sprintf('Estimated state x_{1,k} vs. x_{2,k}');
                     title(str)

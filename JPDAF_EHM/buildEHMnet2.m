@@ -26,7 +26,11 @@
 %                              n measurements.
 %           #Betta for the transposed problem (m x n) can be computed as:
 %               betta_trans = [ones(1,size(betta,2)-1)-sum(betta(:,2:end),1); betta(:,2:end)] 
-%   
+%  
+%   IMPORTANT REMINDER TO SELF:
+%     When computing the remainders for a node, we always look at the remaining
+%     association events in the !NEXT! layer and then get the difference
+%     between these and any entries in the node's MeasIndList.
 %   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 function NetObj = buildEHMnet2(ValidationMatrix, Li)
@@ -36,7 +40,7 @@ PointNum = size(ValidationMatrix,1);
 LayerNum = PointNum; % Layer 1 is root layer
 
 % Augment ValidationMatrix
-ValidationMatrix = [ones(1, PointNum); ValidationMatrix']';
+%ValidationMatrix = [ones(1, PointNum); ValidationMatrix']';
 
 % Get number of Tracks
 TrackNum = size(ValidationMatrix,2);
@@ -52,6 +56,7 @@ NodeObj.Remainders = [ 1:TrackNum ]'; % Remaining tracks
 NetObj.NodeList = [];
 NetObj.EdgeList = [];
 NetObj.ValidationMatrix = ValidationMatrix;
+NetObj.Li = Li;
 
 % Create Root Node
 NetObj.NodeList{1} = NodeObj;
@@ -205,7 +210,7 @@ for NodeInd=2:size(NetObj.NodeList,2)
     end
     p_D(NodeInd,1) = p_D_temp; 
 end
-
+NetObj.p_D = p_D; 
 % Calculate the vector P_U
 p_U = zeros(size(NetObj.NodeList,2),1);
 p_U(end,1) = 1;
@@ -230,7 +235,7 @@ for i=1:size(NetObj.NodeList,2)-1
     end
     p_U(NodeInd,1) = p_U_temp; 
 end
-
+NetObj.p_U = p_U;
 % Compute P_DT matrix
 p_DT = zeros(TrackNum, size(NetObj.NodeList,2));
 for NodeInd=1:size(NetObj.NodeList,2)
@@ -256,7 +261,7 @@ for NodeInd=1:size(NetObj.NodeList,2)
         end
     end
 end
-
+NetObj.p_DT = p_DT;
 % Compute P_T matrix
 p_T = ones(TrackNum, size(NetObj.NodeList,2));
 p_T(:,1) = zeros(TrackNum,1);
@@ -266,7 +271,7 @@ for NodeInd=2:size(NetObj.NodeList,2)
         p_T(TrackInd, NodeInd) = p_U(NodeInd)*Li(Node.MeasInd, TrackInd)*p_DT(TrackInd,NodeInd);
     end
 end
-
+NetObj.p_T = p_T;
 % Compute betta
 betta = zeros(PointNum, TrackNum);
 for MeasInd = 1:PointNum
@@ -284,7 +289,7 @@ end
 for j = 1:PointNum
     betta(j,:) = betta(j,:)/sum(betta(j,:),2);
 end
-betta = betta;
+betta = betta
 betta_rescaled = betta./(betta(:,1)*ones(1,TrackNum));
 betta_rescaled_reduced = betta_rescaled(:, 2:end);
 betta_modified = [ones(1, TrackNum-1); betta_rescaled_reduced];
@@ -293,5 +298,5 @@ betta_transpose = betta_modified_transposed./(sum(betta_modified_transposed,2)*o
 %betta = betta
 betta_trans = [ones(1,size(betta,2)-1)-sum(betta(:,2:end),1); betta(:,2:end)]'
 NetObj.betta = betta;
-NetObj.betta_trans = betta_transpose;
+NetObj.betta_trans = betta_trans;
 %end

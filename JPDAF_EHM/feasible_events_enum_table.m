@@ -1,6 +1,26 @@
-%  Omega = [...
-%    1 1 1 ;
-%    1 1 1 ];
+Omega = [...
+    1 1 1 
+    1 0 1];
+
+% Omega = [...
+%     1 1 0 0 0
+%     1 1 1 0 0
+%     1 1 1 1 0
+%     1 0 0 1 1];
+
+%    Omega = [...
+%     1 0 1 0  
+%     1 1 1 0 
+%     1 1 0 0 
+%     1 1 0 1 
+%     1 0 0 1 ];
+%     
+%     Omega = [...
+%     1 1 0 1  
+%     1 0 1 0 
+%     1 1 0 0 
+%     1 0 0 1 
+%     1 1 1 0 ];
 % 
 % Omega = [...
 %     1 1 1 1 1;
@@ -8,30 +28,30 @@
 %     1 1 1 1 1;
 %     1 1 1 1 1];
 
- Omega = [...
-    1 1 1 1 1 1 1;
-    1 1 1 1 1 1 1;
-    1 1 1 1 1 1 1;
-    1 1 1 1 1 1 1;
-    1 1 1 1 1 1 1;
-    1 1 1 1 1 1 1;
-    1 1 1 1 1 1 1;
-    1 1 1 1 1 1 1];
+%  Omega = [...
+%     1 1 1 1 1 1 1;
+%     1 1 1 1 1 1 1;
+%     1 1 1 1 1 1 1;
+%     1 1 1 1 1 1 1;
+%     1 1 1 1 1 1 1;
+%     1 1 1 1 1 1 1;
+%     1 1 1 1 1 1 1;
+%     1 1 1 1 1 1 1];
 
-% Omega = [...
-%     1 1 1 1;
-%     1 0 1 1;
-%     1 0 0 1;
-%     1 0 0 0];
+Omega = [...
+    1 1 1 1;
+    1 0 1 1;
+    1 0 0 1;
+    1 0 0 0];
 
 % Example 2.1
 % Omega = [...
-%     1 1 0 0 1;
-%     1 1 1 1 0;
-%     1 1 1 0 0;
-%     1 0 0 1 1];
+%     1 1 0 0 1 0;
+%     1 1 1 1 0 1;
+%     1 1 1 0 0 0;
+%     1 0 0 1 1 1];
 
-% Example 6
+%Example 6
 % Omega = [...
 %     1 1 1 1 0 0 0 0 1 0 1;
 %     1 0 1 1 0 0 0 1 1 0 0;
@@ -186,7 +206,7 @@ tic;
 nz = 2;
 
 % Volume of validation region
-PDt = 0.70;
+PDt = 0.7;
 lambda = 0.3317;
 gamma_ = chi2inv(0.99,nz);
 
@@ -213,15 +233,15 @@ for t = 2:Nt+1
 			% F(j,t) = mvcpdf(zkv{j}, zhkp{t}, cov_zhkp{t});
             z = (1/(j*t))*ones(nz,1);
             F(j,t) = mvnpdf(z', mu', S);
-            % F(j,t) = Omegaf(j,1);
+            %F(j,t) = Omegaf(j,1);
 		end
 	end
 end
 
 beta = zeros(size(Omegaf));
 
-% Target t = 0 (no detection) shall not be included
-% Already taken into account considering the probability of detection
+%Target t = 0 (no detection) shall not be included
+%Already taken into account considering the probability of detection
 for t = 1:Nt+1
     for j = 1:mk
         betatj = 0;
@@ -269,9 +289,25 @@ L(:,1) = lambda*(1-PDt)*ones(mk,1);
 L(:,2:Nt+1) = PDt*F(:,2:Nt+1);
 tic;
 % Generate NetObj using own implementation
-NetObj = buildEHMnet2(Omega(:, 2:end), L); 
+NetObj = buildEHMnet2(Omega, L); 
+
+p = drawNetObj(NetObj, 'normal');
+
 toc;
-NetObj.betta    % print computed betta
+Li = zeros(size(Omega,2)-1, size(Omega,1)+1);
+Li(:,1) = lambda*(1-PDt)*ones(Nt,1);
+Li(:,2:end) = L(:,2:end)';
+tic;
+% Generate NetObj using own implementation
+NetObj2 = buildEHMnet_trans([ones(size(Omega,2)-1,1), Omega(:, 2:end)'], Li);
+D = drawNetObj(NetObj2, 'trans');
+toc;
+% NetObj.betta    % print computed betta
+% tic;
+% % Generate NetObj using own implementation
+% NetObj2 = buildEHMnet_fast([ones(1, size(Omega,1)); Omega(:, 2:end)']', L); 
+% toc;
+% NetObj.betta    % print computed betta
 % L_new = [L(:,2:end); lambda*(1-PDt)*ones(1,size(L(:,2:end),2))]; 
 % betta_tree = buildAssocTree(Omega(:, 2:end), L_new, lambda)
 % 

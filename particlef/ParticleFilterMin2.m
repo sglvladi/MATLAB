@@ -56,6 +56,7 @@ classdef ParticleFilterMin2
                     %fprintf('Their std is %d \n', std(prop.particles(:,:),1));
 %                     prop.particles(:,:)
 %                     prop.w
+                    prop.xhk(:,1) = sum(bsxfun(@times, prop.w(:,1)', prop.particles(:,:)),2);
                 end
             else
                 if size(prop.particles,2)~=prop.Np
@@ -125,18 +126,18 @@ classdef ParticleFilterMin2
             end
             
             if ~isfield(prop,'Pdeath')
-                fprintf('Probability Pdeath missing... Assumming Pdeath = 0.05.\n');
+                fprintf('Probability Pdeath missing... Assumming Pdeath = 0.005.\n');
                 prop.Pdeath = 0.005;
             end
             
             if ~isfield(prop,'PD')
                 fprintf('Probability PD missing... Assumming PD = 0.9.\n');
-                prop.PD = 0.9;
+                prop.PD = 0.7;
             end
             
             if ~isfield(prop,'PG')
                 fprintf('Probability PG missing... Assumming PG = 0.989.\n');
-                prop.PG = 0.989;
+                prop.PG = 0.9933;
             end
             
             if ~isfield(prop,'GateLevel')
@@ -430,19 +431,19 @@ classdef ParticleFilterMin2
             Neff = 1/sum(pf.w.^2);
             
             % Resampling
-%             resample_percentage = 0.50;
-%             Nt = resample_percentage*Np;
+            resample_percentage = 0.50;
+            Nt = resample_percentage*Np;
 %             if Neff < Nt
                disp('Resampling ...')
                [pf.particles, pf.w] = obj.resample(pf.particles, pf.w, pf.resampling_strategy);
-% %               {xk, pf.w} is an approximate discrete representation of p(x_k | y_{1:k})
+%               {xk, pf.w} is an approximate discrete representation of p(x_k | y_{1:k})
 %             end
             
             % Compute estimated state
-            pf.xhk(:,1) = sum(bsxfun(@times, pf.w(1,:)', pf.particles(:,:)),2);
+            pf.xhk(:,1) = sum(bsxfun(@times, pf.w(:,1)', pf.particles(:,:)),2);
             
             %c = sum(Li(:,1:end))*pf.ExistProb + sum(Li(:,1))*(1-pf.ExistProb);%sum(pf.betta(1:end))*pf.ExistProb + pf.betta(1)*(1-pf.ExistProb);
-            c = sum(pf.betta(1:end))*pf.ExistProb + pf.betta(1)*(1-pf.ExistProb);
+            c = sum(pf.betta(1:end))*pf.ExistProb + pf.betta(1)*(1-pf.ExistProb)/((1-PD*PG));
             % Update existence probability
             if(pf.clutter_flag)
                 %pf.ExistProb = (sum(Li(:,1:end))*pf.ExistProb)/c;%(sum(pf.betta(1:end))*pf.ExistProb)/c; %1-(pf.betta(1)*(1-pf.ExistProb))/c;
@@ -454,7 +455,7 @@ classdef ParticleFilterMin2
         end
         
         function pf = PredictSearch(obj, pf)
-            Pbirth = 0.01;
+            Pbirth = 0.001;
             Pdeath =  pf.Pdeath;
             nx = size(pf.particles,1);               % number of states
             ny = size(pf.z,1);
@@ -462,7 +463,7 @@ classdef ParticleFilterMin2
 %             if k == 1
 %                error('error: k must be an integer greater or equal than 2');
 %             end
-            pf.ExistProb =  Pbirth*(1-pf.ExistProb) + (1-Pdeath)*pf.ExistProb;
+            
             
             if(pf.optimal_prop_flag)
                  pf.kf.s.z = pf.z;
@@ -473,10 +474,22 @@ classdef ParticleFilterMin2
                     pf.particles(:,i) = mvnrnd(pf.kf.s.x,pf.kf.s.P); % Sample from optimal proposal
                  end
             else
-                 %for i = 1:pf.Np
-                 pf.particles(:,:) = pf.sys(k, pf.particles(:,:), pf.sys_noise(pf.particles(:,:))); % Simply propagate all particles
-                 %end
+                a = Pbirth*(1-pf.ExistProb);
+                b = (1-Pdeath)*pf.ExistProb;
+                Np_n = binornd(pf.Np,b/(a+b))
+                
+                % Generate normally predicted particles 
+                if(Np_n)
+                    pf.particles(:,1:Np_n) = pf.sys(k, pf.particles(:,1:Np_n), pf.sys_noise(pf.particles(:,1:Np_n))); % Simply propagate all particles
+                end
+                
+                % Generate birth particles 
+                if(Np_n<pf.Np)
+                    pf.particles(:,Np_n+1:end) = pf.gen_x0(pf.Np-(Np_n))';
+                end
             end
+            
+            pf.ExistProb =  Pbirth*(1-pf.ExistProb) + (1-Pdeath)*pf.ExistProb;
             
             if(pf.clutter_flag)
                 % Expected likelihood variables 
@@ -530,14 +543,10 @@ classdef ParticleFilterMin2
                 %% Compute Association Likelihoods 
                 z_pred = pf.obs_model(pf.particles(:,:));
                 Li = zeros(pf.Np, ValidDataPointNum);
-                try
-                    for i = 1:ValidDataPointNum
-                        Li(:,i) = mvnpdf(z_pred', z(:,i)', pf.R);
-                    end
-                    pf.Li = sum(Li, 1)/pf.Np;
-                catch
-                    disp('Association Likelihood error!!');
+                for i = 1:ValidDataPointNum
+                    Li(:,i) = mvnpdf(z_pred', z(:,i)', pf.R);
                 end
+                pf.Li = sum(Li, 1)/pf.Np;
             end
         end
         
@@ -575,19 +584,11 @@ classdef ParticleFilterMin2
             %% Compute Association Likelihoods 
             z_pred = pf.obs_model(pf.particles(:,:));
             Li = zeros(size(z_pred,2),ValidDataPointNum+1);
-            try
-                Li(:,1) = ones(size(z_pred,2),1)*pf.betta(1);%*C22/(pf.V_k^(ValidDataPointNum));
-            catch
-                disp('error');
-            end
-            try
-                if(size(pf.betta,2)~=1)
-                    for i = 1:size(z, 2);
-                        Li(:,i+1) = mvnpdf(z_pred', z(:,i)', pf.R)*pf.betta(i+1);%*C11/(pf.V_k^(ValidDataPointNum-1)*ValidDataPointNum);
-                    end
+            Li(:,1) = ones(size(z_pred,2),1)*pf.betta(1);%*C22/(pf.V_k^(ValidDataPointNum));
+            if(size(pf.betta,2)~=1)
+                for i = 1:size(z, 2);
+                    Li(:,i+1) = mvnpdf(z_pred', z(:,i)', pf.R)*pf.betta(i+1);%*C11/(pf.V_k^(ValidDataPointNum-1)*ValidDataPointNum);
                 end
-            catch
-                disp('Association Likelihood error!!');
             end
             % Calculate new weights according to expected likelihood
             if(pf.ExistProb<0.9)
@@ -595,7 +596,7 @@ classdef ParticleFilterMin2
             else
                 % When promoting a track, condition on the most likely
                 % measurement to avoid multi-modality
-                [betta_max, betta_max_ind]=max(betta);
+                [betta_max, betta_max_ind]=max(pf.betta(2:end));
                 wk = pf.w .* Li(:,betta_max_ind);
             end
             
@@ -609,19 +610,19 @@ classdef ParticleFilterMin2
             Neff = 1/sum(pf.w.^2);
             
             % Resampling
-%             resample_percentage = 0.50;
-%             Nt = resample_percentage*Np;
+            resample_percentage = 0.50;
+            Nt = resample_percentage*Np;
 %             if Neff < Nt
                disp('Resampling ...')
                [pf.particles, pf.w] = obj.resample(pf.particles, pf.w, pf.resampling_strategy);
-% %               {xk, pf.w} is an approximate discrete representation of p(x_k | y_{1:k})
+%               {xk, pf.w} is an approximate discrete representation of p(x_k | y_{1:k})
 %             end
             
             % Compute estimated state
             pf.xhk(:,1) = sum(bsxfun(@times, pf.w(1,:)', pf.particles(:,:)),2);
             
             %c = sum(Li(:,1:end))*pf.ExistProb + sum(Li(:,1))*(1-pf.ExistProb);%sum(pf.betta(1:end))*pf.ExistProb + pf.betta(1)*(1-pf.ExistProb);
-            c = sum(pf.betta(1:end))*pf.ExistProb + pf.betta(1)*(1-pf.ExistProb);
+            c = sum(pf.betta(1:end))*pf.ExistProb + pf.betta(1)*(1-pf.ExistProb)/(1-PD*PG);
             % Update existence probability
             if(pf.clutter_flag)
                 %pf.ExistProb = (sum(Li(:,1:end))*pf.ExistProb)/c;%(sum(pf.betta(1:end))*pf.ExistProb)/c; %1-(pf.betta(1)*(1-pf.ExistProb))/c;
