@@ -56,7 +56,6 @@ classdef ParticleFilterMin2
                     %fprintf('Their std is %d \n', std(prop.particles(:,:),1));
 %                     prop.particles(:,:)
 %                     prop.w
-                    prop.xhk(:,1) = sum(bsxfun(@times, prop.w(:,1)', prop.particles(:,:)),2);
                 end
             else
                 if size(prop.particles,2)~=prop.Np
@@ -77,6 +76,8 @@ classdef ParticleFilterMin2
                 end   
             end
              
+            % State estimate based on particles
+            prop.xhk(:,1) = sum(bsxfun(@times, prop.w(:,1)', prop.particles(:,:)),2);
             
             % Validate .obs
             if ~isfield(prop,'obs')
@@ -406,21 +407,13 @@ classdef ParticleFilterMin2
             %% Compute Association Likelihoods 
             z_pred = pf.obs_model(pf.particles(:,:));
             Li = zeros(size(z_pred,2),ValidDataPointNum+1);
-            try
-                Li(:,1) = ones(size(z_pred,2),1)*pf.betta(1);%*C22/(pf.V_k^(ValidDataPointNum));
-            catch
-                disp('error');
-            end
-            try
-                if(size(pf.betta,2)~=1)
-                    for i = 1:size(z, 2);
-                        Li(:,i+1) = mvnpdf(z_pred', z(:,i)', pf.R)*pf.betta(i+1);%*C11/(pf.V_k^(ValidDataPointNum-1)*ValidDataPointNum);
-                    end
+            Li(:,1) = ones(size(z_pred,2),1);%*C22/(pf.V_k^(ValidDataPointNum));
+            if(size(pf.betta,2)~=1)
+                for i = 1:size(z, 2);
+                    Li(:,i+1) = mvnpdf(z_pred', z(:,i)', pf.R);%*C11/(pf.V_k^(ValidDataPointNum-1)*ValidDataPointNum);
                 end
-            catch
-                disp('Association Likelihood error!!');
             end
-            
+            Li = Li.* ones(Np,1)*pf.betta';
             % Calculate new weights according to expected likelihood
             wk = pf.w .* sum(Li(:,:),2); 
             
@@ -679,11 +672,11 @@ classdef ParticleFilterMin2
             % Resampling
              resample_percentage = 0.50;
              Nt = resample_percentage*Np;
-            if Neff < Nt
+            %if Neff < Nt
                disp('Resampling ...')
                [pf.particles, pf.w] = obj.resample(pf.particles, pf.w, pf.resampling_strategy);
 % %               {xk, pf.w} is an approximate discrete representation of p(x_k | y_{1:k})
-             end
+             %end
             
             % Compute estimated state
             pf.xhk = zeros(nx,1);

@@ -1,13 +1,13 @@
 %% Plot settings
 ShowPlots = 1;
-SkipFrames = 0;
+SkipFrames = 5;
 
 %% Initiate PF parameters
 nx = 4;      % number of state dims
 nu = 4;      % size of the vector of process noise
 nv = 2;      % size of the vector of observation noise
 q  = 0.01;   % process noise density (std)
-r  = 0.3;    % observation noise density (std)
+r  = 0.1;    % observation noise density (std)
 % Prior PDF generator
 gen_x0_cch = @(Np) mvnrnd(repmat([0,0,0,0],Np,1),diag([q^2, q^2, 100, 100]));
 % Process equation x[k] = sys(k, x[k-1], u[k]);
@@ -26,7 +26,7 @@ gen_obs_noise = @(v) mvnrnd(zeros(1, nv), cov_v);         % sample from p_obs_no
 p_yk_given_xk = @(k, yk, xk) p_obs_noise((yk - obs(k, xk, zeros(1, nv)))');
 % Assign PF parameter values
 pf.k               = 1;                   % initial iteration number
-pf.Np              = 10000;                 % number of particles
+pf.Np              = 5000;                 % number of particles
 pf.particles       = zeros(5, pf.Np); % particles
 pf.resampling_strategy = 'systematic_resampling';
 pf.sys = sys_cch;
@@ -40,10 +40,10 @@ pf.multi_flag = 1;
 pf.sys_noise = gen_sys_noise_cch;
 
 %% Set TrackNum
-TrackNum = 2;
+TrackNum = 3;
 
 %% Generate DataList
-[DataList,x1,y1] = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, 0.2, 2, 10, 1);
+[DataList,x1,y1] = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, 0.1, 2, 10, 1);
 
 %% Get GroundTruth
 for i=1:TrackNum
@@ -58,7 +58,7 @@ for i=1:TrackNum,
 end;
 
 %% Initiate PDAF parameters
-%Par.Filter = ParticleFilterMin2(pf);
+Par.Filter = ParticleFilterMin2(pf);
 Par.DataList = DataList{1}(:,:);
 Par.GroundTruth = GroundTruth;
 Par.TrackList = TrackList;
@@ -97,17 +97,31 @@ y = (6/8)*x;
 
 figure
 for i = 1:N
-    jpdaf.Par.DataList = DataList{i}(:,:);
-    jpdaf.Par = jpdaf.Predict(jpdaf.Par);
-    jpdaf.Par = jpdaf.Update(jpdaf.Par);
+    % Remove null measurements        
+    jpdaf.config.DataList = DataList{i}(:,:);
+    jpdaf.config.DataList( :, ~any(jpdaf.config.DataList,1) ) = [];
+    jpdaf.Predict();
+    
+    % Compute rhi as given bu Eq. (16) in [2]
+    pi = zeros(1, size(jpdaf.config.ValidationMatrix,2));
+    for m = 1:size(jpdaf.config.ValidationMatrix,2)
+        pi_tmp = 1;
+        for t = 1:TrackNum
+            pi_tmp = pi_tmp*(1-jpdaf.config.beta(t,m+1));
+        end
+        pi(m) = pi_tmp;
+    end
+    pi
+    jpdaf.Update();
     TrackNum = size(TrackList,2);
+    
     %store Logs
-    for j=1:TrackNum,
-        Logs{j}.xV_ekf(:,i) = jpdaf.Par.TrackList{j}.TrackObj.pf.xhk;
+    for j=1:TrackNum
+        Logs{j}.xV_ekf(:,i) = jpdaf.config.TrackList{j}.TrackObj.pf.xhk;
         st = [x1(i,j); y1(i,j)];
         Logs{j}.sV_ekf(:,i)= st;
         % Compute squared error
-        Logs{j}.eV_ekf(:,i) = (jpdaf.Par.TrackList{j}.TrackObj.pf.xhk(1:2,1) - st).*(jpdaf.Par.TrackList{j}.TrackObj.pf.xhk(1:2,1) - st);
+        Logs{j}.eV_ekf(:,i) = (jpdaf.config.TrackList{j}.TrackObj.pf.xhk(1:2,1) - st).*(jpdaf.config.TrackList{j}.TrackObj.pf.xhk(1:2,1) - st);
     end
 
     if (ShowPlots)
@@ -120,7 +134,7 @@ for i = 1:N
             % NOTE: if your image is RGB, you should use flipdim(img, 1) instead of flipud.
 
             hold on;
-            for j=1:TrackNum,
+            for j=1:TrackNum
                 h2 = plot(Logs{j}.sV_ekf(1,1:i),Logs{j}.sV_ekf(2,1:i),'b.-','LineWidth',1);
                 if j==2
                     set(get(get(h2,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
@@ -129,7 +143,7 @@ for i = 1:N
                 set(get(get(h2,'Annotation'),'LegendInformation'),'IconDisplayStyle','off'); % Exclude line from legend
             end
             h2 = plot(DataList{i}(1,:),DataList{i}(2,:),'k*','MarkerSize', 10);
-            for j=1:TrackNum,
+            for j=1:TrackNum
                 colour = 'r';
                 if(j==2)
                    colour = 'c';
@@ -138,12 +152,12 @@ for i = 1:N
                 end
                 h4 = plot(Logs{j}.xV_ekf(1,:),Logs{j}.xV_ekf(2,:),strcat(colour,'.-'),'LineWidth',1);
                 %h4 = plot(Logs{j}.xV_ekf(1,i),Logs{j}.xV_ekf(2,i),strcat(colour,'o'),'MarkerSize', 10);
-                c_mean = mean(jpdaf.Par.TrackList{j}.TrackObj.pf.particles,2);
-                c_cov = [std(jpdaf.Par.TrackList{j}.TrackObj.pf.particles(1,:),jpdaf.Par.TrackList{j}.TrackObj.pf.w')^2,0;0,std(jpdaf.Par.TrackList{j}.TrackObj.pf.particles(2,:),jpdaf.Par.TrackList{j}.TrackObj.pf.w')^2];
+                c_mean = mean(jpdaf.config.TrackList{j}.TrackObj.pf.particles,2);
+                c_cov = [std(jpdaf.config.TrackList{j}.TrackObj.pf.particles(1,:),jpdaf.config.TrackList{j}.TrackObj.pf.w')^2,0;0,std(jpdaf.config.TrackList{j}.TrackObj.pf.particles(2,:),jpdaf.config.TrackList{j}.TrackObj.pf.w')^2];
                 h2=plot_gaussian_ellipsoid(c_mean(1:2), c_cov);
                 set(h2,'color',colour);
                 set(h2,'LineWidth',1);
-                %plot(jpdaf.Par.TrackList{j}.TrackObj.pf.particles(1,:),jpdaf.Par.TrackList{j}.TrackObj.pf.particles(2,:),strcat(colour,'.'),'MarkerSize', 3);
+                %plot(jpdaf.config.TrackList{j}.TrackObj.pf.particles(1,:),jpdaf.config.TrackList{j}.TrackObj.pf.particles(2,:),strcat(colour,'.'),'MarkerSize', 3);
                 set(get(get(h4,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
             end
                 % set the y-axis back to normal.

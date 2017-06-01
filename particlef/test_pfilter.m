@@ -105,7 +105,7 @@ xhmode = zeros(size(xh));
 
 for i = xi
    % for each time step perform a kernel density estimation
-   den(:,i) = ksdensity(my_pf.pf.particles(1,:,i), yi,'kernel','epanechnikov');
+   den(:,i) = ksdensity(my_pf.pf.particles(1:2,:,i)', yi,'kernel','epanechnikov');
    [~, idx] = max(den(:,i));
 
    % estimate the mode of the density

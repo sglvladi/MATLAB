@@ -1,11 +1,12 @@
-classdef JPDAF
+classdef JPDAF <handle
 % =====================================================================================
 % Parameters:
 % Par: structure with the following fields
 %       
 %       * Variables
 %       -------------------
-%       .GroundTruth      = ground truth data (optional)
+%       .GroundTruth      = ground truth data
+%                           (optional if DataList is provided)
 %       .DataGenerator    = Data generator class instance
 %                           (optional if DataList is provided)
 %       .DataList         = all available observations 
@@ -25,14 +26,14 @@ classdef JPDAF
 %       .SimIter          = Number of timesteps to allow simulation for
 
     properties
-        Par
+        config
     end
     
     methods
         function obj = JPDAF(prop)
             % Validate .Filter ~~~~~~~~~~~~~~~~~~~~~~>
             if ~isfield(prop,'Filter')&&~isfield(prop,'TrackList')
-                error('Base Filter class instance (Par.Filter) has not been provided.. Please instantiate the desired filter (KF, EKF, UKF or PF) and include it as an argument! \n');             
+                error('Base Filter class instance (config.Filter) has not been provided.. Please instantiate the desired filter (KF, EKF, UKF or PF) and include it as an argument! \n');             
             elseif ~isfield(prop,'TrackList')
                 if(isa(prop.Filter,'ParticleFilterMin2'))
                     prop.FilterType = 'PF';
@@ -43,7 +44,7 @@ classdef JPDAF
                 elseif(isa(prop.Filter,'UKalmanFilter'))
                     prop.FilterType = 'EKF';
                 else
-                    error('Base Filter class instance (Par.Filter) is invalid.. Please instantiate the desired filter (KF, EKF, UKF or PF) and include it as an argument! \n');
+                    error('Base Filter class instance (config.Filter) is invalid.. Please instantiate the desired filter (KF, EKF, UKF or PF) and include it as an argument! \n');
                 end
             end
             % ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>
@@ -71,34 +72,73 @@ classdef JPDAF
             end
             % ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>
             
-            obj.Par = prop;
+            obj.config = prop;
       
         end
         
-        function Par = Predict(~, Par)
-            if(isa(Par.TrackList{1}.TrackObj,'ParticleFilterMin2'))
-                Par.DataList( :, ~any(Par.DataList,1) ) = []; 
-                %[TrackList, ValidationMatrix, bettaNTFA] = Observation_Association(TrackList, tempDataList, ekf);
-                %TrackList = JPDAF_EKF_Update(TrackList, DataList(:,:,i), ValidationMatrix', bettaNTFA);
-                %[TrackList, betta] = JPDAF_UKF_Update(TrackList, tempDataList, ValidationMatrix', bettaNTFA);
-                %TrackList = Track_InitConfDel(TrackList,tempDataList,ValidationMatrix',bettaNTFA, betta);
-                Par.ValidationMatrix = zeros(Par.TrackNum, size(Par.DataList,2)); 
-                tot_gate_area = 0;
-                for t = 1:Par.TrackNum
-                    %Par.TrackList{t}.TrackObj.pf.k = i;
-                    Par.TrackList{t}.TrackObj.pf.z = Par.DataList;
-                    Par.TrackList{t}.TrackObj.pf = Par.TrackList{t}.TrackObj.PredictMulti(Par.TrackList{t}.TrackObj.pf);
-                    Par.ValidationMatrix(t,:) = Par.TrackList{t}.TrackObj.pf.Validation_matrix;
-                    tot_gate_area = tot_gate_area + Par.TrackList{t}.TrackObj.pf.V_k;
+        function Predict(obj)
+            if(~isempty(obj.config.TrackList))
+                
+                if(isa(obj.config.TrackList{1}.TrackObj,'ParticleFilterMin2')) 
+
+                    % Predict all targets and evaluate the validation matrix
+                    obj.config.ValidationMatrix = zeros(obj.config.TrackNum, size(obj.config.DataList,2)); 
+                    tot_gate_area = 0;
+                    for t = 1:obj.config.TrackNum
+                        %obj.config.TrackList{t}.TrackObj.pf.k = i;
+                        obj.config.TrackList{t}.TrackObj.pf.z = obj.config.DataList;
+                        obj.config.TrackList{t}.TrackObj.pf = obj.config.TrackList{t}.TrackObj.PredictMulti(obj.config.TrackList{t}.TrackObj.pf);
+                        obj.config.ValidationMatrix(t,:) = obj.config.TrackList{t}.TrackObj.pf.Validation_matrix;
+                        tot_gate_area = tot_gate_area + obj.config.TrackList{t}.TrackObj.pf.V_k;
+                    end
+
+                    PointNum = size(obj.config.ValidationMatrix,2);
+
+                    % Compute New Track/False Alarm density
+                    obj.config.bettaNTFA = sum(obj.config.ValidationMatrix(:))/tot_gate_area;
+
+                    % Compute Association Likelihoods 
+                    Li = zeros(obj.config.TrackNum, PointNum);
+                    for j=1:obj.config.TrackNum
+                        % Get valid measurement data indices
+                        ValidDataInd = find(obj.config.TrackList{j}.TrackObj.pf.Validation_matrix(1,:));
+                        for i=1:size(ValidDataInd,2)
+                            Li(j, ValidDataInd(1,i)) = obj.config.TrackList{j}.TrackObj.pf.Li(1,i)'*obj.config.PD*obj.config.PG;
+                        end
+                    end
+                    obj.config.Li = Li;
+
+                    % Get all clusters
+                    obj.FormClusters();
+
+                    % Perform data association
+                    % Create Hypothesis net for each cluster
+                    NetList = [];
+                    betta = zeros(obj.config.TrackNum, PointNum+1);
+                    for c=1:size(obj.config.ClusterList,2)
+                        Cluster = obj.config.ClusterList{c};
+                        ClustMeasIndList = Cluster.MeasIndList;
+                        ClustTrackIndList = Cluster.TrackIndList;
+                        ClustLi = [ones(size(obj.config.Li(ClustTrackIndList, ClustMeasIndList),1), 1)*obj.config.bettaNTFA*(1-obj.config.PD*obj.config.PG),obj.config.Li(ClustTrackIndList, ClustMeasIndList)]; 
+                        NetList{c} = buildEHMnet_trans([ones(size(obj.config.ValidationMatrix(ClustTrackIndList, ClustMeasIndList),1),1), obj.config.ValidationMatrix(ClustTrackIndList, ClustMeasIndList)], ClustLi);
+                        betta(ClustTrackIndList, [1, ClustMeasIndList+1]) = NetList{c}.betta;
+                    end
+                    obj.config.NetList = NetList;
+                    obj.config.betta = betta;
                 end
-                % Compute New Track/False Alarm density
-                Par.bettaNTFA = sum(Par.ValidationMatrix(:))/tot_gate_area;
+            else
+                fprintf('No tracks where found. Skipping JPDAF Predict step...\n');
+                obj.config.betta = -1; % Set betta to -1
             end
         end
         
-        function Par = Update(obj, Par)
-            if(isa(Par.TrackList{1}.TrackObj,'ParticleFilterMin2'))
-                [Par.TrackList] = obj.PF_Update(Par);
+        function Update(obj)
+            if(~isempty(obj.config.TrackList))
+                if(isa(obj.config.TrackList{1}.TrackObj,'ParticleFilterMin2'))
+                    obj.PF_Update();
+                end
+            else
+                fprintf('No tracks where found. Skipping JPDAF Update step...\n');
             end
         end
         
@@ -122,29 +162,95 @@ classdef JPDAF
         %   Dependencies: buildEHMnet_Fast.m 
         %   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-        function TrackList = PF_Update(~,Par)
+        function PF_Update(obj)
             %% Initiate parameters
-            TrackNum    = size(Par.TrackList,2); % Number of targets including FA
+            TrackNum    = size(obj.config.TrackList,2); % Number of targets including FA
             % alpha       = 0.3;      % log likelihood forget factor
-            PG          = Par.PG;      % probability of Gating
-            PD          = Par.PD;      % probability of Detection
-            GateLevel   = Par.GateLevel;
-            bettaNTFA    = Par.bettaNTFA;
-            ValidationMatrix = Par.ValidationMatrix';
-            PointNum = size(Par.ValidationMatrix,1);
-            TrackList = Par.TrackList;
+            PG          = obj.config.PG;      % probability of Gating
+            PD          = obj.config.PD;      % probability of Detection
+            GateLevel   = obj.config.GateLevel;
+            bettaNTFA    = obj.config.bettaNTFA;
+            ValidationMatrix = obj.config.ValidationMatrix;
+            PointNum = size(obj.config.ValidationMatrix,1);
+            TrackList = obj.config.TrackList;
             clustering  = 1;
 
-            if(~isempty(ValidationMatrix)&&(~isempty(find(sum(ValidationMatrix,1)==0,1))))
-                disp('Check');
-            end
+            %% Compute weights and update each track
+            for i=1:TrackNum
+
+                cluster_id = 0;
+                % Get the index of the cluster which track belongs to
+                for j=1:size(obj.config.ClusterList,2)
+                    Cluster = obj.config.ClusterList{j};
+                    if (ismember(i, Cluster.TrackIndList)~=0)
+                        cluster_id = j;
+                        break;
+                    end
+                end
+
+                % If target has been matched with a cluster
+                %  then extract it's association prob. matrix
+                if(cluster_id~=0)
+                    try
+                        % Get the EHM Net relating to that cluster
+                        NetObj = obj.config.NetList{cluster_id};
+                        %NetObj = NetList{1};
+                    catch
+                        disp('this');
+                    end
+
+                    DataInd      = find(obj.config.ValidationMatrix(i,:));    % Associated measurements
+
+                    % extract measurements
+                    z = obj.config.DataList(:,DataInd);
+
+                    % Compute likelihood ratios
+                   % Compute likelihood ratios
+                    ClustMeasIndList=[];
+                    for j=1:size(DataInd,2)
+                       ClustMeasIndList(j) = unique(find(obj.config.ClusterList{cluster_id}.MeasIndList==DataInd(j)));
+                    end    
+                    ClustTrackInd = find(obj.config.ClusterList{cluster_id}.TrackIndList==i); % T1 is the false alarm
+
+                    % Extract betta for target
+            %         if(isempty(NetObj.betta_trans(ClustTrackInd, find(NetObj.betta_trans(ClustTrackInd, :)))))
+            %             disp('error');
+            %         end
+                    obj.config.TrackList{i}.TrackObj.pf.ValidDataInd;
+                    obj.config.TrackList{i}.TrackObj.pf.betta = [obj.config.betta(i,1), obj.config.betta(i,DataInd+1)];% [NetObj.betta(ClustTrackInd,1), NetObj.betta(ClustTrackInd, ClustMeasIndList+1)];
+                else
+                    % Else if target was not matched with any clusters, it means it was
+                    % also not matched with any measurements and thus only the "dummy"
+                    % measurement association is possible (i.e. betta = [1]);
+                    obj.config.TrackList{i}.TrackObj.pf.betta = 1;
+                end
+
+                %------------------------------------------------
+                % update
+                obj.config.TrackList{i}.TrackObj.pf = obj.config.TrackList{i}.TrackObj.UpdateMulti(obj.config.TrackList{i}.TrackObj.pf);
+            end    % track loop
+        end
+        
+        function ClusterList = FormClusters(obj)
+            %% Initiate parameters
+            TrackNum    = size(obj.config.TrackList,2); % Number of targets including FA
+            % alpha       = 0.3;      % log likelihood forget factor
+            PG          = obj.config.PG;      % probability of Gating
+            PD          = obj.config.PD;      % probability of Detection
+            GateLevel   = obj.config.GateLevel;
+            bettaNTFA    = obj.config.bettaNTFA;
+            ValidationMatrix = obj.config.ValidationMatrix;
+            PointNum = size(obj.config.ValidationMatrix,2);
+            TrackList = obj.config.TrackList;
+            clustering  = 1;
+
             %% Form clusters of tracks sharing measurements
             clusters = {};
             if(clustering)
                 % Measurement Clustering
                 for i=1:TrackNum % Iterate over all tracks 
                     matched =[];
-                    temp_clust = find(ValidationMatrix(:,i))'; % Extract associated measurements
+                    temp_clust = find(ValidationMatrix(i,:)); % Extract associated measurements
 
                     % If track matched with any measurements
                     if (~isempty(temp_clust))   
@@ -178,7 +284,7 @@ classdef JPDAF
                 % Measurement Clustering
                 for i=1:TrackNum % Iterate over all tracks (including dummy)
 
-                    temp_clust = find(ValidationMatrix(:,i))'; % Extract associated tracks
+                    temp_clust = find(ValidationMatrix(i,:)); % Extract associated tracks
 
                     % If measurement matched with any tracks
                     if (~isempty(temp_clust))
@@ -197,127 +303,40 @@ classdef JPDAF
             ClusterObj.TrackIndList = [];
             for c=1:size(clusters,2)
                 ClusterList{c} = ClusterObj;
-                ClusterList{c}.MeasIndList = fast_unique(clusters{1,c}(:)');
+                ClusterList{c}.MeasIndList = unique(clusters{1,c}(:)');
 
                 % If we are currently processing the cluster of unassociated tracks 
                 if(isempty(ClusterList{c}.MeasIndList))
                     ClusterList{c}.TrackIndList = unique(union(ClusterList{c}.TrackIndList, find(all(ValidationMatrix==0))));
                 else
                     for i = 1:size(ClusterList{c}.MeasIndList,2) 
-                        ClusterList{c}.TrackIndList = unique(union(ClusterList{c}.TrackIndList, find(ValidationMatrix(ClusterList{c}.MeasIndList(i)',:))));
+                        ClusterList{c}.TrackIndList = unique(union(ClusterList{c}.TrackIndList, find(ValidationMatrix(:,ClusterList{c}.MeasIndList(i)))));
                     end
                 end
             end
-
-            %% Compute Association Likelihoods 
-            Li = zeros(PointNum, TrackNum);
-            for j=1:TrackNum
-                % Get valid measurement data indices
-                ValidDataInd = find(TrackList{j}.TrackObj.pf.Validation_matrix(1,:));
-                z = Par.DataList(:,:);
-                try
-                    z_pred = TrackList{j}.TrackObj.pf.z_pred;
-                catch
-                    disp('error');
-                end
-                for i=1:size(ValidDataInd,2)
-                    Li(ValidDataInd(1,i),j) = TrackList{j}.TrackObj.pf.Li(1,i)'*PD;
-                end
-            end
-
-
-            %% Create Hypothesis net for each cluster
-            NetList = [];
-            NetObj.NodeList = [];
-            NetObj.EdgeList = []; 
-
-            % Hypothesis net for each cluster
-            for c=1:size(ClusterList,2)
-                Cluster = ClusterList{c};
-                ClustMeasIndList = Cluster.MeasIndList;
-                ClustTrackIndList = Cluster.TrackIndList;
-                try
-                    ClustLi = [ones(size(Li(ClustMeasIndList', ClustTrackIndList),1), 1)*bettaNTFA*(1-PD*PG),Li(ClustMeasIndList', ClustTrackIndList)]; 
-                catch
-                    disp('error');
-                end
-                NetList{c} = buildEHMnet_fast(ValidationMatrix(ClustMeasIndList', ClustTrackIndList), ClustLi);
-            end
-
-            %% Compute weights and update each track
-            for i=1:TrackNum,
-
-                cluster_id = 0;
-                % Get the index of the cluster which track belongs to
-                for j=1:size(ClusterList,2)
-                    Cluster = ClusterList{j};
-                    if (ismember(i, Cluster.TrackIndList)~=0)
-                        cluster_id = j;
-                        break;
-                    end
-                end
-
-                % If target has been matched with a cluster
-                %  then extract it's association prob. matrix
-                if(cluster_id~=0)
-                    try
-                        % Get the EHM Net relating to that cluster
-                        NetObj = NetList{cluster_id};
-                        %NetObj = NetList{1};
-                    catch
-                        disp('this');
-                    end
-
-                    DataInd      = find(ValidationMatrix(:,i))';    % Associated measurements
-
-                    % extract measurements
-                    z = Par.DataList(:,DataInd);
-
-                    % Compute likelihood ratios
-                    ClustMeasIndList=[];
-                    for j=1:size(DataInd,2)
-                        ClustMeasIndList(j) = fast_unique(find(ClusterList{cluster_id}.MeasIndList==DataInd(j)));
-                    end    
-                    ClustTrackInd = find(ClusterList{cluster_id}.TrackIndList==i); % T1 is the false alarm
-
-                    % Extract betta for target
-                    if(isempty(NetObj.betta_trans(ClustTrackInd, find(NetObj.betta_trans(ClustTrackInd, :)))))
-                        disp('error');
-                    end
-                    TrackList{i}.TrackObj.pf.betta = NetObj.betta_trans(ClustTrackInd, find(NetObj.betta_trans(ClustTrackInd, :)));
-                else
-                    % Else if target was not matched with any clusters, it means it was
-                    % also not matched with any measurements and thus only the "dummy"
-                    % measurement association is possible (i.e. betta = [1]);
-                    TrackList{i}.TrackObj.pf.betta = 1;
-                end
-
-                %------------------------------------------------
-                % update
-                TrackList{i}.TrackObj.pf = TrackList{i}.TrackObj.UpdateMulti(TrackList{i}.TrackObj.pf);
-            end    % track loop
+            obj.config.ClusterList = ClusterList;
         end
         
-       function Par =  TrackInitConfDel(~,Par)
-            for t = 1:Par.TrackNum
-                if(Par.TrackList{t}.TrackObj.pf.ExistProb>0.1)
-                    TrackList{end} = Par.TrackList{t};
+        function Par =  TrackInitConfDel(~,Par)
+            for t = 1:config.TrackNum
+                if(config.TrackList{t}.TrackObj.pf.ExistProb>0.1)
+                    TrackList{end} = config.TrackList{t};
                 end
             end
             TrackNum = size(TrackList,2);
 
-            invalidDataInd = find((sum(Par.ValidationMatrix,1)==0));
+            invalidDataInd = find((sum(config.ValidationMatrix,1)==0));
             % Process search track
-            if(Par.pf_search.pf.ExistProb>0.9)
+            if(config.pf_search.pf.ExistProb>0.9)
                 disp('Search Track Exist prob:');
-                Par.pf_search.pf.z = Par.DataList(:, invalidDataInd);
-                Par.pf_search.pf = Par.pf_search.PredictSearch(Par.pf_search.pf);
-                Par.pf_search.pf = Par.pf_search.UpdateSearch(Par.pf_search.pf);
+                config.pf_search.pf.z = config.DataList(:, invalidDataInd);
+                config.pf_search.pf = config.pf_search.PredictSearch(config.pf_search.pf);
+                config.pf_search.pf = config.pf_search.UpdateSearch(config.pf_search.pf);
 
-                if(Par.pf_search.pf.ExistProb>0.9)
+                if(config.pf_search.pf.ExistProb>0.9)
                     % Promote new track
                     TrackNum = TrackNum + 1;
-                    TrackList{TrackNum}.TrackObj = Par.pf_search;
+                    TrackList{TrackNum}.TrackObj = config.pf_search;
 
                     % Create new PF search track
                     nx = 4;      % number of state dims
@@ -354,16 +373,16 @@ classdef JPDAF
                     pf.gen_x0 = @(Np) [10*rand(Np,1),10*rand(Np,1), mvnrnd(zeros(Np,1), 2*sigma_v^2), 2*pi*rand(Np,1)];
                     %pf.xhk = [s.x_init(1,i),s.x_init(2,i),0,0]';
                     pf.ExistProb = 0.5;
-                    Par.pf_search = ParticleFilterMin2(pf);
+                    config.pf_search = ParticleFilterMin2(pf);
 
                     disp('Promoted one track');
                 end
             else
                 disp('Search Track Exist prob:');
-                Par.pf_search.pf.z = Par.DataList(:, invalidDataInd);
-                Par.pf_search.pf = Par.pf_search.PredictSearch(Par.pf_search.pf);
-                Par.pf_search.pf = Par.pf_search.UpdateSearch(Par.pf_search.pf);;
-                if(Par.pf_search.pf.ExistProb<0.1)
+                config.pf_search.pf.z = config.DataList(:, invalidDataInd);
+                config.pf_search.pf = config.pf_search.PredictSearch(config.pf_search.pf);
+                config.pf_search.pf = config.pf_search.UpdateSearch(config.pf_search.pf);;
+                if(config.pf_search.pf.ExistProb<0.1)
                     % Reset the search track
                     pf.gen_x0 = @(Np) [10*rand(Np,1),10*rand(Np,1), mvnrnd(zeros(Np,1), 2*sigma_v^2), 2*pi*rand(Np,1)];
                     %pf.xhk = [s.x_init(1,i),s.x_init(2,i),0,0]';

@@ -29,9 +29,6 @@ GateLevel   = 10;
 PointNum = size(ValidationMatrix,1);
 clustering  = 1;
 
-if(~isempty(ValidationMatrix)&&(~isempty(find(sum(ValidationMatrix,1)==0))))
-    disp('Check');
-end
 %% Form clusters of tracks sharing measurements
 clusters = {};
 if(clustering)
@@ -228,9 +225,6 @@ for i=1:TrackNum,
 %         if(isempty(NetObj.betta_trans(ClustTrackInd, find(NetObj.betta_trans(ClustTrackInd, :)))))
 %             disp('error');
 %         end
-        [C,ia,ib] = intersect(ClusterList{cluster_id}.MeasIndList(ClustMeasIndList),TrackList{i}.TrackObj.pf.ValidDataInd);
-        i = i;
-        ia = ia;
         TrackList{i}.TrackObj.pf.ValidDataInd;
         TrackList{i}.TrackObj.pf.betta = [NetObj.betta(ClustTrackInd,1), NetObj.betta(ClustTrackInd, ClustMeasIndList+1)];
     else

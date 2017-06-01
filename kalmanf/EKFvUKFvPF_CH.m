@@ -1,7 +1,7 @@
 PV_err = []
 No_of_Runs = 10
 for Run_iter=1:No_of_Runs
-    [x, obs_x, obs_y, obs_r, obs_phi] = gen_obs(x_true, y_true, th_true, 1);
+    [x, obs_x, obs_y, obs_r, obs_phi] = gen_obs(x_true, y_true, th_true, 0.1);
     %% Clear everything
     clear pf;
     clear F;
@@ -11,7 +11,7 @@ for Run_iter=1:No_of_Runs
     ny = 2;    %number of observation dims
     q=0.01;    %std of process 
     % 120 210-230 270 346-360 -370-390-460
-    r=1;    %std of measurement                               % measurement equation
+    r=0.1;    %std of measurement                               % measurement equation
     st=[x_true(1);y_true(1)];                                % initial state
     % Number of iterations
     N=size(x,2);                                     % total dynamic steps
@@ -29,7 +29,7 @@ for Run_iter=1:No_of_Runs
     s.obs=@(x)[x(1);x(2)];
     s.obs2=@(x,u)[x(1)+u(1);x(2)+u(2)];
     s.x =[obs_x(1); obs_y(1); 0; 0]; %initial state
-    s.P = diag([q^2, q^2, (Vmax^2/3), (Vmax^2/3)]);                              % initial state covraiance
+    s.P = diag([q^2, q^2, (Vmax^2/3), 0.3^2]);                              % initial state covraiance
 
     %% Estimated State container
     xh = zeros(6,nx, T); xh(1,:,1) = s.x; xh(2,:,1) = s.x; xh(3,:,1) = s.x; xh(4,:,1) = s.x; xh(5,:,1) = s.x; xh(6,:,1) = s.x; xh(7,:,1) = s.x;
@@ -75,8 +75,8 @@ for Run_iter=1:No_of_Runs
     s.Q=[Dt^3/3, 0, Dt^2/2, 0;  0, Dt^3/3, 0, Dt^2/2; Dt^2/2, 0, Dt, 0; 0, Dt^2/2, 0, Dt]*q^2; % covariance of process
 
     %% Instantiate KF and vars to store output
-    kf_s = s;
     s.P = diag([q^2, q^2, (Vmax^2/3), (Vmax^2/3)]);
+    kf_s = s;
     kf_s.sys = [1 0 Dt 0; 0 1 0 Dt; 0 0 1 0; 0 0 0 1];
     kf_s.obs = [1 0 0 0; 0 1 0 0];
     kf = KalmanFilter_new(kf_s);
@@ -102,7 +102,7 @@ for Run_iter=1:No_of_Runs
     cov_u = [Dt^3/3, 0, Dt^2/2, 0;  0, Dt^3/3, 0, Dt^2/2; Dt^2/2, 0, Dt, 0; 0, Dt^2/2, 0, Dt]*q^2;
     gen_sys_noise_pch = @(u) mvnrnd(zeros(size(u,2), nu), diag([0,0,0.01^2,0.3^2]));
     gen_sys_noise_pchr = @(u) mvnrnd(zeros(size(u,2), 5), diag([0,0, 0.01^2, 0, 0.1^2]));         % sample from p_sys_noise (returns column vector)
-    gen_sys_noise_ccv = @(u) mvnrnd(zeros(size(u,2), nu), cov_u);
+    gen_sys_noise_ccv = @(u) mvnrnd(zeros(size(u,2), nu), 5*cov_u);
     gen_sys_noise_ccv2 = @(u) mvnrnd(zeros(size(u,2), nu), 2*cov_u);
     gen_sys_noise_cch = @(u) mvnrnd(zeros(size(u,2), nu), diag([0,0,0.01^2,0.3^2])); 
     gen_sys_noise_cchr = @(u) mvnrnd(zeros(size(u,2),5), diag([0,0,0.01^2,0,1^2]));
@@ -116,11 +116,11 @@ for Run_iter=1:No_of_Runs
     gen_obs_noise_radar = @(v) mvnrnd(zeros(1, nv), [r,0;0,2*pi/360]);         % sample from p_obs_noise (returns column vector)
 
     % Initial PDF
-    gen_x0_ccv = @(x) mvnrnd([obs_x(1); obs_y(1); 0; 0],diag([sigma_u^2, sigma_u^2, (Vmax^2/3), (Vmax^2/3)]));               % sample from p_x0 (returns column vector)              % sample from p_x0 (returns column vector)
-    gen_x0_cch = @(x) mvnrnd([obs_x(1); obs_y(1); 0; 0],diag([sigma_u^2, sigma_u^2, (Vmax^2/3), 0.3^2]));
-    gen_x0_cchr = @(x) mvnrnd([obs_x(1); obs_y(1); 0; 0; 0],diag([sigma_u^2, sigma_u^2, (Vmax^2/3), 0, 0]));
-    gen_x0_pch = @(x) mvnrnd([sqrt(obs_x(1)^2+obs_y(1)^2); atan(obs_y(1)/obs_x(1)); 0; 0],diag([sigma_u^2, sigma_u^2, (Vmax^2/3), 0]));
-    gen_x0_pchr = @(x) mvnrnd([sqrt(obs_x(1)^2+obs_y(1)^2); atan(obs_y(1)/obs_x(1)); 0; 0; 0],diag([sigma_u^2, sigma_u^2, (Vmax^2/3), 0, 0]));
+    gen_x0_ccv = @(Np) mvnrnd(repmat([obs_x(1), obs_y(1), 0, 0], Np, 1),diag([sigma_u^2, sigma_u^2, (Vmax^2/3), (Vmax^2/3)]));               % sample from p_x0 (returns column vector)              % sample from p_x0 (returns column vector)
+    gen_x0_cch = @(Np) mvnrnd(repmat([obs_x(1), obs_y(1), 0, 0], Np, 1),diag([sigma_u^2, sigma_u^2, (Vmax^2/3), 0.3^2]));
+    gen_x0_cchr = @(Np) mvnrnd(repmat([obs_x(1), obs_y(1), 0, 0, 0], Np , 1),diag([sigma_u^2, sigma_u^2, (Vmax^2/3), 0, 0]));
+    gen_x0_pch = @(Np) mvnrnd(repmat([sqrt(obs_x(1)^2+obs_y(1)^2), atan(obs_y(1)/obs_x(1)), 0, 0], Np, 1),diag([sigma_u^2, sigma_u^2, (Vmax^2/3), 0]));
+    gen_x0_pchr = @(Np) mvnrnd(repmat([sqrt(obs_x(1)^2+obs_y(1)^2), atan(obs_y(1)/obs_x(1)), 0, 0, 0], Np, 1),diag([sigma_u^2, sigma_u^2, (Vmax^2/3), 0, 0]));
 
     % Observation likelihood PDF p(y[k] | x[k])
     % (under the suposition of additive process noise)
@@ -232,13 +232,13 @@ for Run_iter=1:No_of_Runs
         %pf_pchr.pf.k = k;
         %pf_pchr.pf.z = y(:,k);
         pf_ccv.pf.k = k;
-        pf_ccv.pf.z = y(:,k);
+        pf_ccv.pf.z = ukf.s.z;
         pf_cch.pf.k = k;
-        pf_cch.pf.z = y(:,k);
+        pf_cch.pf.z = ukf.s.z;
         pf_ccv_opt.pf.k = k;
-        pf_ccv_opt.pf.z = y(:,k);
+        pf_ccv_opt.pf.z = ukf.s.z;
         pf_cch_opt.pf.k = k;
-        pf_cch_opt.pf.z = y(:,k);
+        pf_cch_opt.pf.z = ukf.s.z;
 
         % Store new state and measurement
         sV_ukf(:,k)= x(1:2,k);                             % save actual state
@@ -295,13 +295,6 @@ for Run_iter=1:No_of_Runs
         xh(7,:,k) = pf_cch_opt.pf.xhk(:);
         pV_err(7,k) = sqrt((xh(7,1,k) - x(1,k))^2 + (xh(7,2,k)-x(2,k))^2);
         hV_err(7,k) = (rem(xh(7,4,k),pi)-x(3,k));
-
-%         xh(6,:,k) = [pf_pch.pf.xhk(1)*cos(pf_pch.pf.xhk(2)); pf_pch.pf.xhk(1)*sin(pf_pch.pf.xhk(2)); 0 ;0];;
-%         pV_err(6,k) = sqrt((xh(6,1,k) - x(1,k))^2 + (xh(6,2,k)-x(2,k))^2);
-% %         hV_err(6,k) = (rem(xh(6,4,k),pi)-x(3,k));
-%         xh(7,:,k) = [pf_pchr.pf.xhk(1)*cos(pf_pchr.pf.xhk(2)); pf_pchr.pf.xhk(1)*sin(pf_pchr.pf.xhk(2)); 0 ;0];
-%         pV_err(7,k) = sqrt((xh(7,1,k) - x(1,k))^2 + (xh(7,2,k)-x(2,k))^2);
-%         hV_err(7,k) = (atan(xh(7,3,k)/xh(7,4,k))-x(3,k)); 
         for i=1:size(hV_err,1)
             if hV_err(i,k)<0
                 hV_err(i,k) = hV_err(i,k) + pi;
@@ -318,42 +311,43 @@ for Run_iter=1:No_of_Runs
     %     eV_kf(:,k) = sum((kf.s.x(:,1) - [st;v(:,k)]).*(kf.s.x(:,1) - [st;v(:,k)]),1)/4
     %std(pf_cch.pf.particles(1,:))
     %std(pf_cch.pf.particles(1,:),pf_cch.pf.w')
-        clf;
-        axis([-5 30 -5 30])
-    %     imagesc([min_x max_x], [min_y max_y], flipud(img));
-         hold on;
-         h1 = plot(sV_ukf(1,1:k),sV_ukf(2,1:k),'k--','LineWidth',1);
-         h2 = plot(sV_ukf(1,k),sV_ukf(2,k),'ko','MarkerSize', 20);
-         h3 = plot(zV_ukf(1,1:k), zV_ukf(2,1:k),'k.','LineWidth',1);
-%         h3 = plot(obs_r(1:k).*cos(obs_phi(1:k)), obs_r(1:k).*sin(obs_phi(1:k)),'r.','LineWidth',1);
-        h4 = plot(permute(xh(1,1,1:k),[2 3 1]),permute(xh(1,2,1:k),[2 3 1]),'c','LineWidth',1);
-        h5 = plot(permute(xh(1,1,k),[2 3 1]),permute(xh(1,2,k),[2 3 1]),'co','MarkerSize', 20);
-         h6 = plot(permute(xh(2,1,1:k),[2 3 1]),permute(xh(2,2,1:k),[2 3 1]),'b','LineWidth',1);
-         h7 = plot(permute(xh(2,1,k),[2 3 1]),permute(xh(2,2,k),[2 3 1]),'bo','MarkerSize', 20);
-        % h2=plot_gaussian_ellipsoid(ekf.s.x(1:2,1), ekf.s.P(1:2,1:2));
-        h8 = plot(permute(xh(3,1,1:k),[2 3 1]),permute(xh(3,2,1:k),[2 3 1]),'r','LineWidth',1);
-        h9 = plot(permute(xh(3,1,k),[2 3 1]),permute(xh(3,2,k),[2 3 1]),'ro','MarkerSize', 20);
-        h10 = plot(permute(xh(4,1,1:k),[2 3 1]),permute(xh(4,2,1:k),[2 3 1]),'Color',[1,0.6,0],'LineWidth',1);
-        h11 = plot(permute(xh(4,1,k),[2 3 1]),permute(xh(4,2,k),[2 3 1]),'Marker','o','Color',[1,0.6,0],'MarkerSize', 20);
-        %h2=plot_gaussian_ellipsoid([permute(xh(4,1,k),[2 3 1]);permute(xh(4,2,k),[2 3 1])], [std(pf_ccv.pf.particles(1,:))^2,0;0,std(pf_ccv.pf.particles(2,:))^2]);
-         h12 = plot(permute(xh(5,1,1:k),[2 3 1]),permute(xh(5,2,1:k),[2 3 1]),'m','LineWidth',1);
-        %plot(pf_ccv_opt.pf.particles(1,:),pf_ccv_opt.pf.particles(2,:),'.')
-         %fit_ellipse(pf_cch.pf.particles(1,:),pf_cch.pf.particles(2,:), gca)
-        % h2=plot_gaussian_ellipsoid([permute(xh(5,1,k),[2 3 1]);permute(xh(5,2,k),[2 3 1])], [std(pf_cch.pf.particles(1,:))^2,0;0,std(pf_cch.pf.particles(2,:))^2]);
-         h13 = plot(permute(xh(5,1,k),[2 3 1]),permute(xh(5,2,k),[2 3 1]),'mo','MarkerSize', 20);
-        h14 = plot(permute(xh(6,1,1:k),[2 3 1]),permute(xh(6,2,1:k),[2 3 1]),'g','LineWidth',1);
-        h15 = plot(permute(xh(6,1,k),[2 3 1]),permute(xh(6,2,k),[2 3 1]),'go','MarkerSize', 20);
-        %h2=plot_gaussian_ellipsoid([permute(xh(6,1,k),[2 3 1]);permute(xh(6,2,k),[2 3 1])], [std(pf_ccv_opt.pf.particles(1,:))^2,0;0,std(pf_ccv_opt.pf.particles(2,:))^2]);
-        h16 = plot(permute(xh(7,1,1:k),[2 3 1]),permute(xh(7,2,1:k),[2 3 1]),'Color',[0.8,0.8,0],'LineWidth',1);
-        h17 = plot(permute(xh(7,1,k),[2 3 1]),permute(xh(7,2,k),[2 3 1]),'Marker','o','Color',[0.8,0.8,0],'MarkerSize', 20);
-        %h2=plot_gaussian_ellipsoid([permute(xh(7,1,k),[2 3 1]);permute(xh(7,2,k),[2 3 1])], [std(pf_cch_opt.pf.particles(1,:))^2,0;0,std(pf_cch_opt.pf.particles(2,:))^2]);
-        % %         h16 = plot(permute(xh(7,1,1:k),[2 3 1]),permute(xh(7,2,1:k),[2 3 1]),'Color',[1,0.6,0.4],'LineWidth',1);
-% %         h17 = plot(permute(xh(7,1,k),[2 3 1]),permute(xh(7,2,k),[2 3 1]),'Marker','o','Color',[1,0.6,0.4],'MarkerSize', 20);
-         legend([h1 h3 h4 h6 h8 h10 h12 h14 h16],'Ground Truth', 'measurements', 'KF-CCV', 'EKF-CCH', 'UKF-CCH', 'PF-CCV', 'PF-CCH', 'PF-CCV-OPT', 'PF-CCH-OPT');%, 'PF-PCH', 'PF-PCHR');
-         title('State vs estimated state by the particle filter vs particle paths','FontSize',14);
-%         %set the y-axis back to normal.
-%         set(gca,'ydir','normal');
-         pause(0.001)
+%         clf;
+%         axis([-5 30 -5 30])
+%     %     imagesc([min_x max_x], [min_y max_y], flipud(img));
+%          hold on;
+%          h1 = plot(sV_ukf(1,1:k),sV_ukf(2,1:k),'k--','LineWidth',1);
+%          h2 = plot(sV_ukf(1,k),sV_ukf(2,k),'ko','MarkerSize', 20);
+%          h3 = plot(zV_ukf(1,1:k), zV_ukf(2,1:k),'k.','LineWidth',1);
+% %         h3 = plot(obs_r(1:k).*cos(obs_phi(1:k)), obs_r(1:k).*sin(obs_phi(1:k)),'r.','LineWidth',1);
+%         h4 = plot(permute(xh(1,1,1:k),[2 3 1]),permute(xh(1,2,1:k),[2 3 1]),'c','LineWidth',1);
+%         h5 = plot(permute(xh(1,1,k),[2 3 1]),permute(xh(1,2,k),[2 3 1]),'co','MarkerSize', 20);
+%          h6 = plot(permute(xh(2,1,1:k),[2 3 1]),permute(xh(2,2,1:k),[2 3 1]),'b','LineWidth',1);
+%          h7 = plot(permute(xh(2,1,k),[2 3 1]),permute(xh(2,2,k),[2 3 1]),'bo','MarkerSize', 20);
+%         % h2=plot_gaussian_ellipsoid(ekf.s.x(1:2,1), ekf.s.P(1:2,1:2));
+%         h8 = plot(permute(xh(3,1,1:k),[2 3 1]),permute(xh(3,2,1:k),[2 3 1]),'r','LineWidth',1);
+%         h9 = plot(permute(xh(3,1,k),[2 3 1]),permute(xh(3,2,k),[2 3 1]),'ro','MarkerSize', 20);
+%         h10 = plot(permute(xh(4,1,1:k),[2 3 1]),permute(xh(4,2,1:k),[2 3 1]),'Color',[1,0.6,0],'LineWidth',1);
+%         h11 = plot(permute(xh(4,1,k),[2 3 1]),permute(xh(4,2,k),[2 3 1]),'Marker','o','Color',[1,0.6,0],'MarkerSize', 20);
+%         %h2=plot_gaussian_ellipsoid([permute(xh(4,1,k),[2 3 1]);permute(xh(4,2,k),[2 3 1])], [std(pf_ccv.pf.particles(1,:))^2,0;0,std(pf_ccv.pf.particles(2,:))^2]);
+%          h12 = plot(permute(xh(5,1,1:k),[2 3 1]),permute(xh(5,2,1:k),[2 3 1]),'m','LineWidth',1);
+%         %plot(pf_ccv_opt.pf.particles(1,:),pf_ccv_opt.pf.particles(2,:),'.')
+%          %fit_ellipse(pf_cch.pf.particles(1,:),pf_cch.pf.particles(2,:), gca)
+%         % h2=plot_gaussian_ellipsoid([permute(xh(5,1,k),[2 3 1]);permute(xh(5,2,k),[2 3 1])], [std(pf_cch.pf.particles(1,:))^2,0;0,std(pf_cch.pf.particles(2,:))^2]);
+%          h13 = plot(permute(xh(5,1,k),[2 3 1]),permute(xh(5,2,k),[2 3 1]),'mo','MarkerSize', 20);
+%         h14 = plot(permute(xh(6,1,1:k),[2 3 1]),permute(xh(6,2,1:k),[2 3 1]),'g','LineWidth',1);
+%         h15 = plot(permute(xh(6,1,k),[2 3 1]),permute(xh(6,2,k),[2 3 1]),'go','MarkerSize', 20);
+%         plot(pf_ccv.pf.particles(1,:),pf_ccv.pf.particles(2,:), 'r.');
+%         %h2=plot_gaussian_ellipsoid([permute(xh(6,1,k),[2 3 1]);permute(xh(6,2,k),[2 3 1])], [std(pf_ccv_opt.pf.particles(1,:))^2,0;0,std(pf_ccv_opt.pf.particles(2,:))^2]);
+%         h16 = plot(permute(xh(7,1,1:k),[2 3 1]),permute(xh(7,2,1:k),[2 3 1]),'Color',[0.8,0.8,0],'LineWidth',1);
+%         h17 = plot(permute(xh(7,1,k),[2 3 1]),permute(xh(7,2,k),[2 3 1]),'Marker','o','Color',[0.8,0.8,0],'MarkerSize', 20);
+%         %h2=plot_gaussian_ellipsoid([permute(xh(7,1,k),[2 3 1]);permute(xh(7,2,k),[2 3 1])], [std(pf_cch_opt.pf.particles(1,:))^2,0;0,std(pf_cch_opt.pf.particles(2,:))^2]);
+%         % %         h16 = plot(permute(xh(7,1,1:k),[2 3 1]),permute(xh(7,2,1:k),[2 3 1]),'Color',[1,0.6,0.4],'LineWidth',1);
+% % %         h17 = plot(permute(xh(7,1,k),[2 3 1]),permute(xh(7,2,k),[2 3 1]),'Marker','o','Color',[1,0.6,0.4],'MarkerSize', 20);
+%          legend([h1 h3 h4 h6 h8 h10 h12 h14 h16],'Ground Truth', 'measurements', 'KF-CCV', 'EKF-CCH', 'UKF-CCH', 'PF-CCV', 'PF-CCH', 'PF-CCV-OPT', 'PF-CCH-OPT');%, 'PF-PCH', 'PF-PCHR');
+%          title('State vs estimated state by the particle filter vs particle paths','FontSize',14);
+% %         %set the y-axis back to normal.
+% %         set(gca,'ydir','normal');
+%          pause(0.001)
         % Generate new state
 %         ax = gca;
 %         ax.Units = 'pixels';

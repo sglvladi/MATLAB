@@ -96,16 +96,23 @@ classdef UKalmanFilter<KalmanFilter_new
             % Scaling parameters and sigma-points
             [Si,flag] = chol((na + lambda)*Pa_km1, 'lower');
             if flag ~= 0
-               SP = chol(s.P)';
-               SQ1 = chol(s.Q(1:3,1:3))';
-               %SQ2 = chol(Q_k(4:6,4:6))';
-               %SQ3 = chol(Q_k(7:9,7:9))';
-               % SQ4 = chol(Q_k(10:12,10:12))';
-               % SQ5 = chol(Q_k(13:15,13:15))';
-               % SQ6 = chol(Q_k(16:18,16:18))';
-                SQ = blkdiag(SQ1);%,SQ2,SQ3,SQ4,SQ5,SQ6
-                SR = chol(s.R)';
-                Si = blkdiag(SP,SQ,SR);
+                SP = nearestSPD((na + lambda)*Pa_km1);
+                Si = chol(SP, 'lower');
+%                 try
+%                     SP = chol(s.P)';
+%                 catch
+%                     sP = nearestSPD(s.P);
+%                     SP = chol(sP)';
+%                 end
+%                     SQ1 = chol(s.Q(1:nx,1:nu))';
+%                    %SQ2 = chol(Q_k(4:6,4:6))';
+%                    %SQ3 = chol(Q_k(7:9,7:9))';
+%                    % SQ4 = chol(Q_k(10:12,10:12))';
+%                    % SQ5 = chol(Q_k(13:15,13:15))';
+%                    % SQ6 = chol(Q_k(16:18,16:18))';
+%                     SQ = blkdiag(SQ1);%,SQ2,SQ3,SQ4,SQ5,SQ6
+%                     SR = chol(s.R)';
+%                     Si = blkdiag(SP,SQ,SR);
             end
             Xa_km1_m;
             Si;

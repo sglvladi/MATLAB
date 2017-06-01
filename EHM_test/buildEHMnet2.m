@@ -1,8 +1,7 @@
-%   buildEHMnet_trans.m                              Author: Lyudmil Vladimirov
+%   buildEHMnet2.m                              Author: Lyudmil Vladimirov
 %   ======================================================================>
 %   Functionality: 
-%       Build Track-Oriented (TO) EHM net and compute respective 
-%       association probabilities (betta).
+%       Build EHM net and compute respective association probabilities (betta).
 %       (normally executed for each cluster)
 %
 %   Input:
@@ -10,8 +9,8 @@
 %                             to track associations (for cluster of interest).
 %                             (Output from ObservationAssociation.m)
 %       Li                  - Matrix (M x T) containing association likelihoods
-%       (M: number of measurements, including dummy at index 1)
-%       (T: number of tracks)
+%       (M: number of measurements in cluster)
+%       (T: number of tracks, including dummy at index 1)
 %
 %   Output:
 %       Structure NetObj:
@@ -26,35 +25,44 @@
 %           #NetObj.p_U      - Computed p_U matrix
 %           #NetObj.p_DT     - Computed p_DT matrix
 %           #NetObj.p_T      - Computed p_T matrix
-%           #NetObj.betta    - Matrix (T x M) containing Association  
+%           #NetObj.betta    - Matrix (M x T) containing Association  
 %                              probabilites computed for all T tracks and
 %                              M measurements.
 %
+%           #Betta for the transposed problem (T-1 x M+1) can possibly be computed as:
+%               Own:
+%                   betta_transpose = [ones(1,size(betta,2)-1)-sum(betta(:,2:end),1); betta(:,2:end)] 
+%               Flavio's:
+%                   betta_rescaled = betta./(betta(:,1)*ones(1,TrackNum));
+%                   betta_rescaled_reduced = betta_rescaled(:, 2:end);
+%                   betta_modified = [ones(1, TrackNum-1); betta_rescaled_reduced];
+%                   betta_modified_transposed = betta_modified';
+%                   betta_transpose = betta_modified_transposed./(sum(betta_modified_transposed,2)*ones(1,PointNum+1))
+%                   
 %   IMPORTANT REMINDER TO SELF:
 %     When computing the remainders for a node, we always look at the remaining
 %     association events in the !NEXT! layer and then get the difference
-%     between these and any entries in the node's MeasIndList.
+%     between these and any entries in the node's MeasIndList (.
 %   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+function NetObj = buildEHMnet2(ValidationMatrix, Li)
 
-function NetObj = buildEHMnet_trans(ValidationMatrix, Li)
-
-    % Get number of tracks/layers
-    TrackNum = size(ValidationMatrix,1); 
-    LayerNum = TrackNum; % Layer 1 is root layer
+    % Get number of measurements/layers
+    PointNum = size(ValidationMatrix,1); 
+    LayerNum = PointNum; % Layer 1 is root layer
 
     % Augment ValidationMatrix
-    %ValidationMatrix = [ones(1, TrackNum); ValidationMatrix']';
+    %ValidationMatrix = [ones(1, PointNum); ValidationMatrix']';
 
-    % Get number of Maasurements
-    PointNum = size(ValidationMatrix,2);
+    % Get number of Tracks
+    TrackNum = size(ValidationMatrix,2);
 
     % Define Node Object
-    NodeObj.TrackInd = 0; % Measurement index
-    NodeObj.MeasIndList = []; % List of associated tracks
+    NodeObj.MeasInd = 0; % Measurement index
+    NodeObj.TrackIndList = []; % List of associated tracks
     NodeObj.ParentIndList = []; % List of Parent nodes
     NodeObj.ChildIndList = [];  % List of Child nodes
-    NodeObj.Remainders = [ 1:PointNum ]'; % Remaining tracks
+    NodeObj.Remainders = [ 1:TrackNum ]'; % Remaining tracks
 
     % Define Net Object
     NetObj.NodeList = [];
@@ -71,10 +79,10 @@ function NetObj = buildEHMnet_trans(ValidationMatrix, Li)
     for j=1:LayerNum
 
         % Get index list (L_jm1_Ind) of nodes in previous layer (j-1)
-        L_jm1_Ind = find(cell2mat(cellfun(@(sas)sas.TrackInd, NetObj.NodeList, 'uni', false))==j-1);
+        L_jm1_Ind = find(cell2mat(cellfun(@(sas)sas.MeasInd, NetObj.NodeList, 'uni', false))==j-1);
 
-        % Get indeces of all associated measurements for track j
-        M_j = [find(ValidationMatrix(j,:))]; % i=0 for false alarm
+        % Get indeces of all associated targets for measurement j
+        T_j = [find(ValidationMatrix(j,:))]; % i=0 for false alarm
 
         % For every node in L_jm1
         for i_jm1 = 1:size(L_jm1_Ind,2)
@@ -82,21 +90,20 @@ function NetObj = buildEHMnet_trans(ValidationMatrix, Li)
             % Index of parent node
             ParentInd = L_jm1_Ind(i_jm1);
 
-            % Get all measurements to consider
-            M_jm1 = union(1,setdiff(M_j,NetObj.NodeList{ParentInd}.MeasIndList)); 
+            % Get all targets to consider
+            T_jm1 = union(1,setdiff(T_j,NetObj.NodeList{ParentInd}.TrackIndList)); 
 
-            % For every measurement in M_jm1
-            for i=1:size(M_jm1,2)
+            % For every track in T_jm1
+            for i=1:size(T_jm1,2)
 
                 % Get the track index
-                MeasInd = M_jm1(i);
+                TrackInd = T_jm1(i);
 
                 % Init Match flag
                 match_flag = 0;
 
-                dfg = cellfun(@(sas)sas.TrackInd, NetObj.NodeList, 'uni', false );
+                dfg = cellfun(@(sas)sas.MeasInd, NetObj.NodeList, 'uni', false );
                 dfg = cell2mat(dfg);
-
                 % Get index list L_j of nodes in current layer (j)
                 L_j_Ind = find(dfg==j);
 
@@ -107,29 +114,29 @@ function NetObj = buildEHMnet_trans(ValidationMatrix, Li)
 
                     % Create child node
                     NetObj.NodeList{ChildInd} = NodeObj;
-                    NetObj.NodeList{ChildInd}.TrackInd = j;
-                    NetObj.NodeList{ChildInd}.MeasIndList = union(NetObj.NodeList{L_jm1_Ind(i_jm1)}.MeasIndList(:,:), M_jm1(i));
-                    NetObj.NodeList{ChildInd}.MeasIndList = NetObj.NodeList{ChildInd}.MeasIndList(:)';
+                    NetObj.NodeList{ChildInd}.MeasInd = j;
+                    NetObj.NodeList{ChildInd}.TrackIndList = union(NetObj.NodeList{L_jm1_Ind(i_jm1)}.TrackIndList(:,:), T_jm1(i));
+                    NetObj.NodeList{ChildInd}.TrackIndList = NetObj.NodeList{ChildInd}.TrackIndList(:)';
                     NetObj.NodeList{ParentInd}.ChildIndList = union(NetObj.NodeList{ParentInd}.ChildIndList, ChildInd);
                     NetObj.NodeList{ChildInd}.ParentIndList = union(NetObj.NodeList{ChildInd}.ParentIndList, ParentInd);
 
                     % Create edge from parent to child
-                    NetObj.EdgeList{ParentInd, ChildInd} =[MeasInd];
+                    NetObj.EdgeList{ParentInd, ChildInd} =[TrackInd];
 
                     % Compute remainders
-                    M_rem_j = []; % T_j+1:mk[N^(j)_(i_j)]
+                    T_rem_j = []; % T_j+1:mk[N^(j)_(i_j)]
                     for j_sub = j+1:LayerNum
-                        M_rem_j = union(M_rem_j, find(ValidationMatrix(j_sub,:))');
+                        T_rem_j = union(T_rem_j, find(ValidationMatrix(j_sub,:))');
                     end
-                    NetObj.NodeList{ChildInd}.Remainders = setdiff(M_rem_j,setdiff(NetObj.NodeList{ChildInd}.MeasIndList,1)); 
+                    NetObj.NodeList{ChildInd}.Remainders = setdiff(T_rem_j,setdiff(NetObj.NodeList{ChildInd}.TrackIndList,1)); 
                 else
 
                     % Compute remainders (j-1)
-                    M_rem_jm1_ti = []; %T_j+1:mk[N^(j-1)_(i_j-1),t_i]
+                    T_rem_jm1_ti = []; %T_j+1:mk[N^(j-1)_(i_j-1),t_i]
                     for j_sub = j+1:LayerNum
-                        M_rem_jm1_ti = union(M_rem_jm1_ti, find(ValidationMatrix(j_sub,:))');
+                        T_rem_jm1_ti = union(T_rem_jm1_ti, find(ValidationMatrix(j_sub,:))');
                     end
-                    R_jm1 = setdiff(M_rem_jm1_ti,setdiff(union(NetObj.NodeList{ParentInd}.MeasIndList, MeasInd),1));
+                    R_jm1 = setdiff(T_rem_jm1_ti,setdiff(union(NetObj.NodeList{ParentInd}.TrackIndList, TrackInd),1));
                     R_jm1 = R_jm1(:); % Enforce that R_jm1 is a column vector
 
                     % For all nodes in current layer
@@ -147,15 +154,15 @@ function NetObj = buildEHMnet_trans(ValidationMatrix, Li)
                         if (isequal(R_jm1,R_j)) 
                             % Simply add a new edge and update parent/child
                             %   relationships
-                            NetObj.NodeList{ChildInd}.MeasIndList = union(NetObj.NodeList{ChildInd}.MeasIndList,MeasInd);
+                            NetObj.NodeList{ChildInd}.TrackIndList = union(NetObj.NodeList{ChildInd}.TrackIndList,TrackInd);
                             if size(NetObj.EdgeList,1)<ParentInd
-                                NetObj.EdgeList{ParentInd, ChildInd} = MeasInd;
+                                NetObj.EdgeList{ParentInd, ChildInd} = TrackInd;
                             else
-                                NetObj.EdgeList{ParentInd, ChildInd} = union(NetObj.EdgeList{ParentInd, ChildInd}, MeasInd);
+                                NetObj.EdgeList{ParentInd, ChildInd} = union(NetObj.EdgeList{ParentInd, ChildInd}, TrackInd);
                             end
                             NetObj.NodeList{ParentInd}.ChildIndList = union(NetObj.NodeList{ParentInd}.ChildIndList, ChildInd);
                             NetObj.NodeList{ChildInd}.ParentIndList = union(NetObj.NodeList{ChildInd}.ParentIndList, ParentInd);
-                            NetObj.NodeList{ChildInd}.MeasIndList = union(NetObj.NodeList{ChildInd}.MeasIndList, NetObj.NodeList{ParentInd}.MeasIndList);
+                            NetObj.NodeList{ChildInd}.TrackIndList = union(NetObj.NodeList{ChildInd}.TrackIndList, NetObj.NodeList{ParentInd}.TrackIndList);
 
                             % set match_flag
                             match_flag = 1;
@@ -169,21 +176,21 @@ function NetObj = buildEHMnet_trans(ValidationMatrix, Li)
 
                         % Create child node
                         NetObj.NodeList{ChildInd} = NodeObj;
-                        NetObj.NodeList{ChildInd}.TrackInd = j;
-                        NetObj.NodeList{ChildInd}.MeasIndList = union(NetObj.NodeList{L_jm1_Ind(i_jm1)}.MeasIndList(:,:), M_jm1(i));
-                        NetObj.NodeList{ChildInd}.MeasIndList = NetObj.NodeList{ChildInd}.MeasIndList(:)';
+                        NetObj.NodeList{ChildInd}.MeasInd = j;
+                        NetObj.NodeList{ChildInd}.TrackIndList = union(NetObj.NodeList{L_jm1_Ind(i_jm1)}.TrackIndList(:,:), T_jm1(i));
+                        NetObj.NodeList{ChildInd}.TrackIndList = NetObj.NodeList{ChildInd}.TrackIndList(:)';
                         NetObj.NodeList{ParentInd}.ChildIndList = union(NetObj.NodeList{ParentInd}.ChildIndList, ChildInd);
                         NetObj.NodeList{ChildInd}.ParentIndList = union(NetObj.NodeList{ChildInd}.ParentIndList, ParentInd);
 
                         % Create edge from parent to child
-                        NetObj.EdgeList{ParentInd, ChildInd} =[MeasInd];
+                        NetObj.EdgeList{ParentInd, ChildInd} =[TrackInd];
 
                         % Compute remainders
-                        M_rem_j = []; % T_j+1:mk[N^(j)_(i_j)]
+                        T_rem_j = []; % T_j+1:mk[N^(j)_(i_j)]
                         for j_sub = j+1:LayerNum
-                            M_rem_j = union(M_rem_j, find(ValidationMatrix(j_sub,:))');
+                            T_rem_j = union(T_rem_j, find(ValidationMatrix(j_sub,:))');
                         end
-                        R_j = setdiff(M_rem_j,setdiff(NetObj.NodeList{ChildInd}.MeasIndList,1));
+                        R_j = setdiff(T_rem_j,setdiff(NetObj.NodeList{ChildInd}.TrackIndList,1));
                         NetObj.NodeList{ChildInd}.Remainders = R_j; 
                     end
                 end
@@ -199,24 +206,21 @@ function NetObj = buildEHMnet_trans(ValidationMatrix, Li)
     for NodeInd=2:size(NetObj.NodeList,2)
         p_D_temp = 0;
         Node = NetObj.NodeList{NodeInd};
-
         % for every parent of the node
         for i = 1:size(Node.ParentIndList,2)
-
             ParentInd = Node.ParentIndList(i);
             p_D_m1 = p_D(ParentInd,1);
-
-            % for every measurement in the parent-child edge
-            MeasEdgeList = cell2mat(NetObj.EdgeList(ParentInd,NodeInd));
-            for t = 1:size(MeasEdgeList,2)
-                MeasInd = MeasEdgeList(t);
-                p_D_temp = p_D_temp + Li(Node.TrackInd, MeasInd)*p_D_m1;
+            % for every track in the parent-child edge
+            TrackEdgeList = cell2mat(NetObj.EdgeList(ParentInd,NodeInd));
+            for t = 1:size(TrackEdgeList,2)
+                TrackInd = TrackEdgeList(t);
+                p_D_temp = p_D_temp + Li(Node.MeasInd, TrackInd)*p_D_m1;
             end
         end
         p_D(NodeInd,1) = p_D_temp; 
     end
     NetObj.p_D = p_D; 
-
+    
     % Calculate the vector P_U
     p_U = zeros(size(NetObj.NodeList,2),1);
     p_U(end,1) = 1;
@@ -232,77 +236,76 @@ function NetObj = buildEHMnet_trans(ValidationMatrix, Li)
             ChildNode = NetObj.NodeList{ChildInd};
             p_U_p1 = p_U(ChildInd,1);
 
-            % for every measurement in the parent-child edge
-            MeasEdgeList = cell2mat(NetObj.EdgeList(NodeInd, ChildInd));
-            for t = 1:size(MeasEdgeList,2)
-                MeasInd = MeasEdgeList(t);
-                p_U_temp = p_U_temp + Li(ChildNode.TrackInd, MeasInd)*p_U_p1;
+            % for every track in the parent-child edge
+            TrackEdgeList = cell2mat(NetObj.EdgeList(NodeInd, ChildInd));
+            for t = 1:size(TrackEdgeList,2)
+                TrackInd = TrackEdgeList(t);
+                p_U_temp = p_U_temp + Li(ChildNode.MeasInd, TrackInd)*p_U_p1;
             end
         end
         p_U(NodeInd,1) = p_U_temp; 
     end
     NetObj.p_U = p_U;
-
+    
     % Compute P_DT matrix
-    p_DT = zeros(PointNum, size(NetObj.NodeList,2));
+    p_DT = zeros(TrackNum, size(NetObj.NodeList,2));
     for NodeInd=1:size(NetObj.NodeList,2)
         Node = NetObj.NodeList{NodeInd};
-        for MeasInd = 1:PointNum
-            
-            % Valid parents, where MeasInd belongs to edge
+        p_DT_temp = 1;
+        for TrackInd = 1:TrackNum
+            % Valid parents, where TrackInd belongs to edge
             ValidParentIndList = [];
             for j = 1:size(Node.ParentIndList,2)
                 ParentInd = Node.ParentIndList(j);
-                MeasEdgeList = cell2mat(NetObj.EdgeList(ParentInd, NodeInd));
-                if (ismember(MeasInd, MeasEdgeList)~=0)
+                TrackEdgeList = cell2mat(NetObj.EdgeList(ParentInd, NodeInd));
+                if (ismember(TrackInd, TrackEdgeList)~=0)
                     ValidParentIndList = union(ValidParentIndList,ParentInd);
                 end
             end 
-
             for i = 1:size(ValidParentIndList,2)
                 ParentInd = ValidParentIndList(i);
                 p_D_m1 = p_D(ParentInd,1);
-                p_DT(MeasInd,NodeInd) = p_DT(MeasInd,NodeInd) + p_D_m1;
+                p_DT(TrackInd,NodeInd) = p_DT(TrackInd,NodeInd) + p_D_m1;
             end
         end
     end
     NetObj.p_DT = p_DT;
     
     % Compute P_T matrix
-    p_T = ones(PointNum, size(NetObj.NodeList,2));
-    p_T(:,1) = zeros(PointNum,1);
+    p_T = ones(TrackNum, size(NetObj.NodeList,2));
+    p_T(:,1) = zeros(TrackNum,1);
     for NodeInd=2:size(NetObj.NodeList,2)
         Node = NetObj.NodeList{NodeInd};
-        for MeasInd = 1:PointNum
-            p_T(MeasInd, NodeInd) = p_U(NodeInd)*Li(Node.TrackInd, MeasInd)*p_DT(MeasInd,NodeInd);
+        for TrackInd = 1:TrackNum
+            p_T(TrackInd, NodeInd) = p_U(NodeInd)*Li(Node.MeasInd, TrackInd)*p_DT(TrackInd,NodeInd);
         end
     end
     NetObj.p_T = p_T;
-
+    
     % Compute betta
-    betta = zeros(TrackNum, PointNum);
-    for TrackInd = 1:TrackNum
-        for MeasInd = 1:PointNum
-            % Get index list L_j of nodes in current measurement layer (TrackInd)
-            L_j_Ind = find(cell2mat(cellfun(@(sas)sas.TrackInd, NetObj.NodeList, 'uni', false ))==TrackInd);
+    betta = zeros(PointNum, TrackNum);
+    for MeasInd = 1:PointNum
+        for TrackInd = 1:TrackNum
+            % Get index list L_j of nodes in current measurement layer (MeasInd)
+            L_j_Ind = find(cell2mat(cellfun(@(sas)sas.MeasInd, NetObj.NodeList, 'uni', false ))==MeasInd);
             for j = 1:size(L_j_Ind, 2)
                 NodeInd = L_j_Ind(j);
-                betta(TrackInd, MeasInd) = betta(TrackInd, MeasInd) + p_T(MeasInd,NodeInd);%p_U(NodeInd)*Li(TrackInd, TrackInd)*p_DT(TrackInd, NodeInd);
+                betta(MeasInd, TrackInd) = betta(MeasInd, TrackInd) + p_T(TrackInd,NodeInd);%p_U(NodeInd)*Li(MeasInd, TrackInd)*p_DT(TrackInd, NodeInd);
             end
         end
     end
 
     % Normalise
-    for j = 1:TrackNum
+    for j = 1:PointNum
         betta(j,:) = betta(j,:)/sum(betta(j,:),2);
     end
 
-    % Compute betta transpose
-    betta_rescaled = betta./(betta(:,1)*ones(1,PointNum));
+    % Compute betta transpose (using Flavio's method)
+    betta_rescaled = betta./(betta(:,1)*ones(1,TrackNum));
     betta_rescaled_reduced = betta_rescaled(:, 2:end);
-    betta_modified = [ones(1, PointNum-1)*PointNum-1; betta_rescaled_reduced];
+    betta_modified = [ones(1, TrackNum-1); betta_rescaled_reduced];
     betta_modified_transposed = betta_modified';
-    betta_transpose = betta_modified_transposed./(sum(betta_modified_transposed,2)*ones(1,TrackNum+1));
+    betta_transpose = betta_modified_transposed./(sum(betta_modified_transposed,2)*ones(1,PointNum+1));
 
     NetObj.betta = betta;
     NetObj.betta_trans = betta_transpose;

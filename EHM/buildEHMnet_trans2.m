@@ -1,8 +1,7 @@
-%   buildEHMnet_trans.m                              Author: Lyudmil Vladimirov
+%   buildEHMnet2.m                              Author: Lyudmil Vladimirov
 %   ======================================================================>
 %   Functionality: 
-%       Build Track-Oriented (TO) EHM net and compute respective 
-%       association probabilities (betta).
+%       Build EHM net and compute respective association probabilities (betta).
 %       (normally executed for each cluster)
 %
 %   Input:
@@ -12,7 +11,7 @@
 %       Li                  - Matrix (M x T) containing association likelihoods
 %       (M: number of measurements, including dummy at index 1)
 %       (T: number of tracks)
-%
+
 %   Output:
 %       Structure NetObj:
 %           #NetObj.NodeList - List of all Nodes (NodeObj) contained in net
@@ -36,8 +35,7 @@
 %     between these and any entries in the node's MeasIndList.
 %   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-
-function NetObj = buildEHMnet_trans(ValidationMatrix, Li)
+function NetObj = buildEHMnet_trans2(ValidationMatrix, Li)
 
     % Get number of tracks/layers
     TrackNum = size(ValidationMatrix,1); 
@@ -83,7 +81,7 @@ function NetObj = buildEHMnet_trans(ValidationMatrix, Li)
             ParentInd = L_jm1_Ind(i_jm1);
 
             % Get all measurements to consider
-            M_jm1 = union(1,setdiff(M_j,NetObj.NodeList{ParentInd}.MeasIndList)); 
+            M_jm1 = M_j; 
 
             % For every measurement in M_jm1
             for i=1:size(M_jm1,2)
@@ -247,8 +245,10 @@ function NetObj = buildEHMnet_trans(ValidationMatrix, Li)
     p_DT = zeros(PointNum, size(NetObj.NodeList,2));
     for NodeInd=1:size(NetObj.NodeList,2)
         Node = NetObj.NodeList{NodeInd};
+        p_DT_temp = 1;
+
         for MeasInd = 1:PointNum
-            
+
             % Valid parents, where MeasInd belongs to edge
             ValidParentIndList = [];
             for j = 1:size(Node.ParentIndList,2)

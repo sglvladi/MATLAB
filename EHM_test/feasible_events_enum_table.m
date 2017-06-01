@@ -1,21 +1,28 @@
-Omega = [...
-    1 1 1 
-    1 0 1];
+% 2 targets, 1 common measurement
+% Omega = [...
+%     1 1 1 ];
 
+% 2 targets, 2 common measurement
+Omega = [...
+    1 1 
+    1 1];
+
+% Example from "Fast Mutual Exlusion", S. Maskell et. al., 2004
 % Omega = [...
 %     1 1 0 0 0
 %     1 1 1 0 0
 %     1 1 1 1 0
 %     1 0 0 1 1];
 
-%    Omega = [...
+% Omega = [...
 %     1 0 1 0  
 %     1 1 1 0 
 %     1 1 0 0 
 %     1 1 0 1 
 %     1 0 0 1 ];
-%     
-%     Omega = [...
+%  
+
+%  Omega = [...
 %     1 1 0 1  
 %     1 0 1 0 
 %     1 1 0 0 
@@ -23,13 +30,6 @@ Omega = [...
 %     1 1 1 0 ];
 % 
 % Omega = [...
-%     1 1 1 1 1;
-%     1 1 1 1 1;
-%     1 1 1 1 1;
-%     1 1 1 1 1];
-
-%  Omega = [...
-%     1 1 1 1 1 1 1;
 %     1 1 1 1 1 1 1;
 %     1 1 1 1 1 1 1;
 %     1 1 1 1 1 1 1;
@@ -38,11 +38,22 @@ Omega = [...
 %     1 1 1 1 1 1 1;
 %     1 1 1 1 1 1 1];
 
-Omega = [...
-    1 1 1 1;
-    1 0 1 1;
-    1 0 0 1;
-    1 0 0 0];
+
+% Omega = [...
+%     1 1 1 1 1 1 1 1;
+%     1 1 1 1 1 1 1 1;
+%     1 1 1 1 1 1 1 1;
+%     1 1 1 1 1 1 1 1;
+%     1 1 1 1 1 1 1 1;
+%     1 1 1 1 1 1 1 1;
+%     1 1 1 1 1 1 1 1;
+%     1 1 1 1 1 1 1 1];
+
+% Omega = [...
+%     1 1 1 1;
+%     1 0 1 1;
+%     1 0 0 1;
+%     1 0 0 0];
 
 % Example 2.1
 % Omega = [...
@@ -99,7 +110,7 @@ Omega = [...
 %     1 0 0 0 0 0 0 0 1 0;
 %     1 0 1 1 0 1 0 0 0 0];
 
-% Example 8.3
+% % Example 8.3
 % Omega = [...
 %     1 1 1 1 1 1 0 0 0 0;
 %     1 0 1 1 0 0 0 0 0 0;
@@ -152,7 +163,8 @@ for j = 1:mk
     ind{j} = find(Omegaf(j,:) == 1);
 end
 
-disp('Running MO JPDA with enumerating table...');
+fprintf('\nRunning MO JPDA with enumerating table...\n===============================================>');
+tic;
 %% JPDA with enumerating table
 % Matrix with all association events that satisfy:
 % one source for each measurement (one target market in each row)
@@ -203,21 +215,20 @@ thetaf(1:k,1) = theta(1:k,1);
 %% JPDA with table -- end
 %% Define parameters
 % Dimension of output vector
-tic;
 nz = 2;
 
 % Volume of validation region
-PDt = 0.7;
+PDt = 0.99;
 lambda = 0.3317;
 gamma_ = chi2inv(0.99,nz);
 
 %% Calculate marginal association probabilities for targets/tracks
-F = zeros(size(Omegaf));
+%F = zeros(size(Omegaf));
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % It is used element-wise in the loop - by Flávio (13/07/2016)
 % (no need to bother about the term lambda.(1-Pd) in this matrix)
-F(:,1) = zeros(mk,1);
+%F(:,1) = zeros(mk,1);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 mu = [0; 0];
@@ -228,16 +239,16 @@ V(1,1) = 0;
 V(1,2:end) = cnz*sqrt(det(gamma_*S))*ones(size(V(1,2:end)));
 
 % This is fictitious (from line 194 to 204) - for testing purposes
-for t = 2:Nt+1
-	for j = 1:mk
-		if Omegaf(j,t) == 1
-			% F(j,t) = mvcpdf(zkv{j}, zhkp{t}, cov_zhkp{t});
-            z = (1/(j*t))*ones(nz,1);
-            F(j,t) = mvnpdf(z', mu', S);
-            %F(j,t) = Omegaf(j,1);
-		end
-	end
-end
+% for t = 2:Nt+1
+% 	for j = 1:mk
+% 		if Omegaf(j,t) == 1
+% 			% F(j,t) = mvcpdf(zkv{j}, zhkp{t}, cov_zhkp{t});
+%             z = (1/(j*t))*ones(nz,1);
+%             F(j,t) = mvnpdf(z', mu', S);
+%             %F(j,t) = Omegaf(j,1);
+% 		end
+% 	end
+% end
 
 beta = zeros(size(Omegaf));
 
@@ -281,37 +292,50 @@ end
 for j = 1:mk
     beta(j,:) = beta(j,:)/sum(beta(j,:),2);
 end
-
-betac = beta
+beta_mo = beta
 toc;
 
 % Compose the likelihood matrix as expected by your function - by Flávio (13/07/2016)
 L = zeros(size(F));
 L(:,1) = lambda*(1-PDt)*ones(mk,1);
 L(:,2:Nt+1) = PDt*F(:,2:Nt+1);
-tic;
-% Generate NetObj using own implementation
-NetObj = buildEHMnet2(Omega, L); 
 
-p = drawNetObj(NetObj, 'normal');
+% Transpose Omega
+Omega_trans = [ones(size(Omega,2)-1,1), Omega(:, 2:end)'];
 
-toc;
-Li = zeros(size(Omega,2)-1, size(Omega,1)+1);
-Li(:,1) = lambda*(1-PDt)*ones(Nt,1);
-Li(:,2:end) = L(:,2:end)';
+% Transpose likelihood matrix
+L_trans = zeros(size(Omega_trans,1), size(Omega_trans,2));
+L_trans(:,1) = lambda*(1-PDt)*ones(Nt,1);
+L_trans(:,2:end) = L(:,2:end)';
+
+% Generate results for Solution 1 (TO Tree based)
+% ===============================================>
+fprintf('\nRunning Solution 1 (TO Tree based)...\n===============================================>');
 tic;
-% Generate NetObj using own implementation
-NetObj2 = buildEHMnet_trans([ones(size(Omega,2)-1,1), Omega(:, 2:end)'], Li);
-D = drawNetObj(NetObj2, 'trans');
+TreeObj = buildTree(Omega_trans, L_trans);
+beta_to = TreeObj.betta
 toc;
-% NetObj.betta    % print computed betta
-% tic;
-% % Generate NetObj using own implementation
-% NetObj2 = buildEHMnet_fast([ones(1, size(Omega,1)); Omega(:, 2:end)']', L); 
-% toc;
-% NetObj.betta    % print computed betta
-% L_new = [L(:,2:end); lambda*(1-PDt)*ones(1,size(L(:,2:end),2))]; 
-% betta_tree = buildAssocTree(Omega(:, 2:end), L_new, lambda)
-% 
+drawTreeObj(TreeObj, 'TO', 'Solution 1 Tree');
+
+% Generate results for Solution 2 (MO-EHM)
+% ===============================================>
+fprintf('\nRunning Solution 2 (MO-EHM)...\n===============================================>');
+tic;
+NetObj = buildEHMnet2_flavio(Omega, L); 
+beta_mo = NetObj.betta
+beta_to = NetObj.betta_trans
+toc;
+p = drawNetObj(NetObj, 'MO', 'Solution 2 Net');
+
+% Generate results for Solution 3
+% ===============================================>
+fprintf('\nRunning Solution 3 (TO-EHM)...\n===============================================>');
+tic;
+NetObj2 = buildEHMnet_trans(Omega_trans, L_trans);
+beta_to = NetObj2.betta
+toc;
+D = drawNetObj(NetObj2, 'TO', 'Solution 3 Net');
+;
+
 
         

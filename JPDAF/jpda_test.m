@@ -120,7 +120,7 @@ for sim = 1:SimNum
         
         % JPDAF_UKF_Update provides JPDAF updates for all targets, using a 
         %   UKF.
-        TrackList = JPDAF_EHM_Update(TrackList, DataList(:,:,i), ValidationMatrix', bettaNTFA);
+        TrackList = JPDAF_UKF_Update(TrackList, DataList(:,:,i), ValidationMatrix', bettaNTFA);
         %TrackList = Track_InitConfDel(TrackList,tempDataList,ValidationMatrix',bettaNTFA, betta);
         
         % Update Logs

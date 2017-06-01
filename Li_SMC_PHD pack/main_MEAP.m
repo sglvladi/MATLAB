@@ -84,23 +84,23 @@ sumTno=[];
 sumTNo_MEAP_adaptive=[];
 for repe=1:repeatTimes
     % initialization
-        L = max(round(Birth.w*Np),Nmin);
-        sumL = sum(L);
-        xPre1=GENRANDN(Birth.m(:,1),Birth.P,L(1));
-        xPre2=GENRANDN(Birth.m(:,2),Birth.P,L(2));
-        xPre3=GENRANDN(Birth.m(:,3),Birth.P,L(3));
-        xPre4=GENRANDN(Birth.m(:,4),Birth.P,L(4));  
-        px  = [xPre1,xPre2,xPre3,xPre4];
-        pw =sum(Birth.w)/sumL*ones(1,sumL);
-%         N=sumL;
-       TNo_PFs=[];
-       TNo_Ristict=[];
-       TNo_MEAP_adaptive=[];
-       Time_pf=[];
-       Time_Zhao=[];
-       Time_Ristic=[];
-       Time_MEAP_Nk=[];
-       Time_MEAP_adaptive=[];
+    L = max(round(Birth.w*Np),Nmin);
+    sumL = sum(L);
+    xPre1=GENRANDN(Birth.m(:,1),Birth.P,L(1));
+    xPre2=GENRANDN(Birth.m(:,2),Birth.P,L(2));
+    xPre3=GENRANDN(Birth.m(:,3),Birth.P,L(3));
+    xPre4=GENRANDN(Birth.m(:,4),Birth.P,L(4));  
+    px  = [xPre1,xPre2,xPre3,xPre4];
+    pw =sum(Birth.w)/sumL*ones(1,sumL);
+    %         N=sumL;
+    TNo_PFs=[];
+    TNo_Ristict=[];
+    TNo_MEAP_adaptive=[];
+    Time_pf=[];
+    Time_Zhao=[];
+    Time_Ristic=[];
+    Time_MEAP_Nk=[];
+    Time_MEAP_adaptive=[];
     d_pf=[]; 
     d_Ristic=[]; 
     d_Zhao=[]; 
@@ -109,9 +109,9 @@ for repe=1:repeatTimes
     for t=1:Runtime
         x=Targets(t).x;
         Num_Targets(t)=size(x,2);  
-         clutterNo = poissrnd(Rate_Clutter);
+        clutterNo = poissrnd(Rate_Clutter);
         Y.Dis = rand(1,clutterNo)*2000;
-            Y.bearing = rand(1,clutterNo)*pi;  
+        Y.bearing = rand(1,clutterNo)*pi;  
         if ~isempty(x)
             distance= H*x(1:4,:);
             Jp= find(rand(size(distance,2),1)<compute_pD(Model,x));
@@ -125,33 +125,33 @@ for repe=1:repeatTimes
 %             general
             [pxhat,what,wPre] = CompWeight_distance_bearing(Y,pw,px,H,F,G,Noise,sensor,r_noise,Birth,Np,Wd,Ps);
 %             w=phd(what,Kz,pD,wPre);
-        pD=compute_pD(Model,pxhat);
+            pD=compute_pD(Model,pxhat);
             [pw,wlik,Cz]=myphd(what,Kz,pD,wPre); 
-        %% resampling
-        sumw=sum(pw);
-        Tno=round(sumw);
-        TNo_PFs(t)=Tno;
-        N=max(round(Np*sumw),Nmin);   %  N=max(Np*Tno,Nmin);
-                outIndex=resampling(pw,N); 
-                pw=sumw/N*ones(1,N);
-                px=pxhat(:,outIndex(:))+ [G*(repmat(Noise.vel,1,N).*randn(2,N));zeros(1,N)]; 
-                % for the roughening noises, please refer to the following work
-                % T. Li, et al.Roughening methods to prevent sample impoverishment in the particle PHD filter, 
-                % FUSION 2013, Istanbul Turkey, 9-12 July 2013.
+            %% resampling
+            sumw=sum(pw);
+            Tno=round(sumw);
+            TNo_PFs(t)=Tno;
+            N=max(round(Np*sumw),Nmin);   %  N=max(Np*Tno,Nmin);
+            outIndex=resampling(pw,N); 
+            pw=sumw/N*ones(1,N);
+            px=pxhat(:,outIndex(:))+ [G*(repmat(Noise.vel,1,N).*randn(2,N));zeros(1,N)]; 
+            % for the roughening noises, please refer to the following work
+            % T. Li, et al.Roughening methods to prevent sample impoverishment in the particle PHD filter, 
+            % FUSION 2013, Istanbul Turkey, 9-12 July 2013.
 
 %%  ///// OUTPUT   ////////%%%  
 %% Clustering method
-tic
-%  Standard k-means Clustering
+            tic
+            %  Standard k-means Clustering
             xout=cluster(px([1,3],:),Tno); 
-    Time_pf(t)=toc;
-%   xoutArr(t).xout=xout;
+            Time_pf(t)=toc;
+        %   xoutArr(t).xout=xout;
 %% Ristic's method
-tic
-Tno2=0;
-L=size(Y.Dis,2); 
-        Wz=sum(wlik);
-        Wz(L+1)=wPre*(1-pD);% sum((1-pD).*wPre);
+            tic
+            Tno2=0;
+            L=size(Y.Dis,2); 
+            Wz=sum(wlik);
+            Wz(L+1)=wPre*(1-pD);% sum((1-pD).*wPre);
             xout2=[];
             for z=1:L+1
                 if Wz(z)>=w_Ristic
@@ -163,16 +163,16 @@ L=size(Y.Dis,2);
                     end
                 end
             end
-Time_Ristic(t)=toc;            
-             TNo_Ristict(t)=Tno2; 
+            Time_Ristic(t)=toc;            
+            TNo_Ristict(t)=Tno2; 
 %% peak-extraction of Lingling Zhao's method
-tic
-L=size(Y.Dis,2);
-Wz=sum(wlik);              
-        Wz(L+1)=wPre*(1-pD);% sum();
-        [Dtemp,wSub]=sort(-Wz);
+            tic
+            L=size(Y.Dis,2);
+            Wz=sum(wlik);              
+            Wz(L+1)=wPre*(1-pD);% sum();
+            [Dtemp,wSub]=sort(-Wz);
 %             xout3=zeros(2,Tno);
-xout3=[];
+            xout3=[];
             for jtemp=1:min(Tno,L+1)
                 if wSub(jtemp)==L+1
                    wsub=wPre'.*(1-pD)/Wz(L+1);
@@ -182,45 +182,45 @@ xout3=[];
                     xout3(:,jtemp)=pxhat([1,3],:)*wsub; 
                 end
             end
-Time_Zhao(t)=toc;
+            Time_Zhao(t)=toc;
 %%   my method with the assumed number of estimates !
-tic
-L = size(Y.Dis,2);
-Wz=sum(wlik);
+            tic
+            L = size(Y.Dis,2);
+            Wz=sum(wlik);
             [Dtemp,wSub]=sort(-Wz);
             [Zmtx, indx] = max(wlik,[],2);
             xout4=zeros(2,min(Tno,L));
             for j=1:min(Tno,L)
-                  Jz = find(indx==wSub(j));  % The nearest neighbor data association 
-%                 Jz2 = find(what(:,wSub(j))>=0.058);% The 1/2/3 sigma near data association, 
-%                  % where 0.058 = normpdf(1,0,1)^2; 0.0029 = normpdf(2,0,1)^2; 1.96e-5 = normpdf(3,0,1)^2;
-%                 Jz = union(Jz,Jz2); %% Near and Nearest Neighbor data association.
-%                                       % to note, Jz can choose just Jz1 or
-%                                       % Jz2 for simplicity and more
-%                                       % better estimation even!
-                    wsubsum=wPre(Jz)*what(Jz,wSub(j));
-                    wsub=wPre(Jz)'.*what(Jz,wSub(j))/wsubsum;
-                  xout4(:,j)=pxhat([1,3],Jz)*wsub;
+                Jz = find(indx==wSub(j));  % The nearest neighbor data association 
+                %                 Jz2 = find(what(:,wSub(j))>=0.058);% The 1/2/3 sigma near data association, 
+                %                  % where 0.058 = normpdf(1,0,1)^2; 0.0029 = normpdf(2,0,1)^2; 1.96e-5 = normpdf(3,0,1)^2;
+                %                 Jz = union(Jz,Jz2); %% Near and Nearest Neighbor data association.
+                %                                       % to note, Jz can choose just Jz1 or
+                %                                       % Jz2 for simplicity and more
+                %                                       % better estimation even!
+                wsubsum=wPre(Jz)*what(Jz,wSub(j));
+                wsub=wPre(Jz)'.*what(Jz,wSub(j))/wsubsum;
+                xout4(:,j)=pxhat([1,3],Jz)*wsub;
             end
-Time_MEAP_Nk(t) = toc;           
+            Time_MEAP_Nk(t) = toc;           
 %%  my method with adaptive number of estimates!!
-tic
-Tno1  = 0;
-L = size(Y.Dis,2);
-Wz=sum(wlik);
+            tic
+            Tno1  = 0;
+            L = size(Y.Dis,2);
+            Wz=sum(wlik);
             [Zmtx, indx] = max(wlik,[],2);
-                xout1=[];
-                for z=1:L
-                    if Wz(z)>=w_Ristic
-                        Tno1=Tno1+1;
-                        Jz= find(indx==z);
-                        wsubsum=wPre(Jz)*what(Jz,z);
-                        wsub=wPre(Jz)'.*what(Jz,z)/wsubsum;
-                        xout1 = [xout1, pxhat([1,3],Jz)*wsub];
-                    end
-                end            
-Time_MEAP_adaptive(t) = toc; 
-TNo_MEAP_adaptive (t)  = Tno1;
+            xout1=[];
+            for z=1:L
+                if Wz(z)>=w_Ristic
+                    Tno1=Tno1+1;
+                    Jz= find(indx==z);
+                    wsubsum=wPre(Jz)*what(Jz,z);
+                    wsub=wPre(Jz)'.*what(Jz,z)/wsubsum;
+                    xout1 = [xout1, pxhat([1,3],Jz)*wsub];
+                end
+            end            
+            Time_MEAP_adaptive(t) = toc; 
+            TNo_MEAP_adaptive (t)  = Tno1;
 %%         
             if ~isempty(x)
                d_pf(t)=ospa_dist(xout,x([1,3],:),c,p); 
@@ -247,10 +247,10 @@ TNo_MEAP_adaptive (t)  = Tno1;
     sumTime_Zhao=[sumTime_Zhao;Time_Zhao];
     sumTime_MEAP_Nk=[sumTime_MEAP_Nk;Time_MEAP_Nk];
     sumTime_MEAP_adaptive=[sumTime_MEAP_adaptive;Time_MEAP_adaptive];
-sumTNo_PFs=[sumTNo_PFs;TNo_PFs];
-sumTNo_Ristic=[sumTNo_Ristic;TNo_Ristict];
-sumTNo_MEAP_adaptive=[sumTNo_MEAP_adaptive;TNo_MEAP_adaptive];
-sumTno=[sumTno;Num_Targets];
+    sumTNo_PFs=[sumTNo_PFs;TNo_PFs];
+    sumTNo_Ristic=[sumTNo_Ristic;TNo_Ristict];
+    sumTNo_MEAP_adaptive=[sumTNo_MEAP_adaptive;TNo_MEAP_adaptive];
+    sumTno=[sumTno;Num_Targets];
 
 end
 meand_pf=mean(sumd_pf);
