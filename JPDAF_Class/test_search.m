@@ -7,8 +7,8 @@ nx = 4;      % number of state dims
 nu = 4;      % size of the vector of process noise
 nv = 2;      % size of the vector of observation noise
 q  = 0.01;   % process noise density (std)
-r  = 0.15;    % observation noise density (std)
-lambdaV = 3; % mean number of clutter points 
+r  = 0.1;    % observation noise density (std)
+lambdaV = 50; % mean number of clutter points 
 % Prior PDF generator
 gen_x0_cch = @(Np) mvnrnd(repmat([0,0,0,0],Np,1),diag([q^2, q^2, 100, 100]));
 % Process equation x[k] = sys(k, x[k-1], u[k]);
@@ -45,7 +45,7 @@ TrackNum = 0;
 TrueTracks = 3;
 
 %% Generate DataList                       (TrackNum, x_true, y_true, R, R_clutter, lambdaV, Iter)                   
-[DataList,x1,y1] = gen_obs_cluttered_multi2(TrueTracks, x_true, y_true, 0.1, 2, lambdaV, 1);
+[DataList,x1,y1] = gen_obs_cluttered_multi2(TrueTracks, x_true, y_true, r, 2, lambdaV, 1);
 
 %% Get GroundTruth
 for i=1:TrueTracks
@@ -73,7 +73,7 @@ Par.SimIter = 1000;
 
 %% Assign PHD parameter values
 par.k               = 1;                                                    % initial iteration number
-par.Np              = 50000;                                                % number of particles
+par.Np              = 10000;                                                % number of particles
 par.resampling_strategy = 'systematic_resampling';                          % resampling strategy
 par.birth_strategy = 'mixture';                                           %  
 par.sys = @(k, xkm1, uk) [xkm1(1,:)+1*xkm1(3,:).*cos(xkm1(4,:)); xkm1(2,:)+1*xkm1(3,:).*sin(xkm1(4,:)); xkm1(3,:)+ uk(:,3)'; xkm1(4,:) + uk(:,4)']; % CH model
@@ -201,7 +201,7 @@ for i = 1:N
             % Plot data
             cla(ax(1));
              % Flip the image upside down before showing it
-            imagesc(ax(1),[min_x max_x], [min_y max_y], flipud(img));
+            imagesc([min_x max_x], [min_y max_y], flipud(img));
 
             % NOTE: if your image is RGB, you should use flipdim(img, 1) instead of flipud.
 
@@ -260,4 +260,8 @@ end
 figure
 plot(1:1184, TrackNum_log)
 hold on
+%TrueTrackNum_log = zeros(size(x_true,1),1);
+%for i = 1:size(x_true,2)
+TrueTrackNum_log = sum(x_true>0,2);
+%end
 plot(1:1184, TrueTrackNum_log)

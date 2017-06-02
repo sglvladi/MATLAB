@@ -413,8 +413,12 @@ classdef ParticleFilterMin2
                     Li(:,i+1) = mvnpdf(z_pred', z(:,i)', pf.R);%*C11/(pf.V_k^(ValidDataPointNum-1)*ValidDataPointNum);
                 end
             end
-            Li = Li.* ones(Np,1)*pf.betta';
-            % Calculate new weights according to expected likelihood
+            try
+                Li = Li.*repmat(pf.betta, Np, 1);
+            catch
+                df=2;
+            end
+                % Calculate new weights according to expected likelihood
             wk = pf.w .* sum(Li(:,:),2); 
             
             % Normalize weight vector
