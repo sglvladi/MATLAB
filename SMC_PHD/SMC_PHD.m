@@ -181,7 +181,7 @@ classdef SMC_PHD < handle
 
                 % Generate normally predicted particles 
                 if(Np_n)
-                    config.particles(:,1:Np_n) = config.sys(config.k, config.particles(:,1:Np_n), config.sys_noise(config.particles(:,1:Np_n))); % Simply propagate all particles
+                    config.particles(:,1:Np_n) = config.sys(config.k, config.particles(:,1:Np_n), config.sys_noise(Np_n)); % Simply propagate all particles
                 end
 
                 % Generate birth particles 

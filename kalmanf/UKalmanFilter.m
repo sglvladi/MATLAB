@@ -19,6 +19,107 @@ classdef UKalmanFilter<KalmanFilter_new
         end
         
         function s = Predict(obj,s)
+        
+            nx = numel(s.x);
+            nu = nx;
+            ny = 2;
+            nv = ny;
+
+            % Parameters for the UKF
+            na = nx + nu + nv;
+            alpha = 0.5;
+            beta = 2;
+            kappa = 0;
+            lambda = (alpha^2)*(na + kappa) - na;
+
+            % Weights
+            Wm = zeros(1,2*na+1);
+            Wc = zeros(1,2*na+1);
+            Wm(1,1) = lambda/(na + lambda);
+            Wc(1,1) = Wm(1,1) + (1 -alpha^2 + beta);
+            Wm(1,2:2*na+1) = 1/(2*(na + lambda));
+            Wc(1,2:2*na+1) = Wm(1,2:2*na+1);
+
+            % Allocate memory
+            Xa_km1 = zeros(na,2*na+1);
+            X_k_km1 = zeros(nx,2*na+1);
+            Y_k_km1 = zeros(ny,2*na+1);
+            P_k_km1 = zeros(nx,nx);
+            Pyy = zeros(ny,ny);
+            Pxy = zeros(nx,ny);
+
+            % UKF augmented states
+            % if det(P_km1) == 0
+            %     P_km1 = eye(nx)*1e-6;
+            % end
+            %P_km1
+            %P_km1 = nearestSPD(P_km1);
+
+            Pa_km1 = blkdiag(s.P, s.Q, s.R);
+            Xa_km1_m = [s.x; zeros(nu,1); zeros(nv,1)];
+
+
+
+            % Scaling parameters and sigma-points
+            [Si,flag] = chol((na + lambda)*Pa_km1, 'lower');
+            if flag ~= 0
+                SP = nearestSPD((na + lambda)*Pa_km1);
+                Si = chol(SP, 'lower');
+%                 try
+%                     SP = chol(s.P)';
+%                 catch
+%                     sP = nearestSPD(s.P);
+%                     SP = chol(sP)';
+%                 end
+%                     SQ1 = chol(s.Q(1:nx,1:nu))';
+%                    %SQ2 = chol(Q_k(4:6,4:6))';
+%                    %SQ3 = chol(Q_k(7:9,7:9))';
+%                    % SQ4 = chol(Q_k(10:12,10:12))';
+%                    % SQ5 = chol(Q_k(13:15,13:15))';
+%                    % SQ6 = chol(Q_k(16:18,16:18))';
+%                     SQ = blkdiag(SQ1);%,SQ2,SQ3,SQ4,SQ5,SQ6
+%                     SR = chol(s.R)';
+%                     Si = blkdiag(SP,SQ,SR);
+            end
+            Xa_km1_m;
+            Si;
+            Xa_km1(:,1) = Xa_km1_m;
+            Xa_km1(:,2:na+1) = Xa_km1_m*ones(1,na) + Si(:,1:na);
+            Xa_km1(:,na+2:2*na+1) = Xa_km1_m*ones(1,na) - Si(:,1:na);
+            Xa_km1;
+
+            % Prediction (time update)
+            for j = 1:2*na+1
+                X_k_km1(1:nx,j) = s.sys(Xa_km1(1:nx,j), Xa_km1(nx+1:nx+nu,j));
+                Y_k_km1(1:ny,j) = s.obs(X_k_km1(1:nx,j), Xa_km1(nx+nu+1:na,j));
+            end
+
+            x_k_km1 = sum((ones(nx,1)*Wm).*X_k_km1,2);
+            y_k_km1 = sum((ones(ny,1)*Wm).*Y_k_km1,2);
+            
+            % Measurement update
+            for j = 1:2*na+1
+                P_k_km1 = P_k_km1 + Wc(1,j)*(X_k_km1(1:nx,j) -x_k_km1)*(X_k_km1(1:nx,j) -x_k_km1)';
+                Pyy = Pyy + Wc(1,j)*(Y_k_km1(1:ny,j) -y_k_km1)*(Y_k_km1(1:ny,j) -y_k_km1)';
+                Pxy = Pxy + Wc(1,j)*(X_k_km1(1:nx,j) -x_k_km1)*(Y_k_km1(1:ny,j) -y_k_km1)';
+            end
+            
+            s.x_pred = x_k_km1;
+            s.P_pred = P_k_km1;
+            s.z_pred = y_k_km1;
+            s.S = Pyy;
+            s.P12 = Pxy;
+            
+%             K_k = Pxy/Pyy;
+%             m_k = x_k_km1 + K_k*(s.z -y_k_km1);
+%             P_k = P_k_km1 - K_k*Pyy*K_k';
+% 
+%             % Return filtered state and covariance
+%             s.x = m_k;
+%             s.P = P_k;
+        end
+        
+        function s = Predict2(obj,s)
             % Get size of state and measurements vectors
             n=numel(s.x);                                 %numer of states
             m=2;                                 %numer of measurements                                     %default, tunable

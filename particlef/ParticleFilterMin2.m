@@ -345,8 +345,10 @@ classdef ParticleFilterMin2
 %                     DistM2  = sum(((pf.z-mean(trans_part,2)*ones(1,PointNum)).*(pf.z-mean(trans_part,2)*ones(1,PointNum)))'/S,2)';
 %                     Validation_matrix = Validation_matrix + DistM2 < GateLevel;
 %                 end
-                DistM  = sum(((pf.z-trans_mean*ones(1,PointNum)).*(pf.z-trans_mean*ones(1,PointNum)))'/pf.S,2)';
-
+                %DistM = sum(((pf.z-trans_mean*ones(1,PointNum))'.^2/pf.S)');
+                %DistM  = sum(((pf.z-trans_mean*ones(1,PointNum)).*(pf.z-trans_mean*ones(1,PointNum)))'/pf.S,2)';
+                DistM = mahalDist(pf.z, trans_mean, pf.S, 2)';
+                pf.DistM = DistM;
                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 % thresholding/ gating
                 pf.Validation_matrix = DistM < GateLevel;

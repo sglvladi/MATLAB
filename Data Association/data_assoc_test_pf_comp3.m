@@ -1,12 +1,12 @@
-r_list = [0.5];
-lambda_list = [50]
+r_list = [0.1:0.1:1];
+lambda_list = repmat(50, 1, 10);
 Sim_No = 50;
 clear F
 PV_err = [];
 PV_lost = [];
 RMSE_test = [];
 lost_test = [];
-for test_iter = 1:size(r_list,2)+1
+for test_iter = 1:size(r_list,2)
     RMSE_Sim = [];
     lost_Sim = [];
     for sim_iter = 1:Sim_No
@@ -15,29 +15,30 @@ for test_iter = 1:size(r_list,2)+1
         lost_avg = [];
         % Number of Target Tracks
         TrackNum = 1 ;
-        [DataList,x1,y1] = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, 0.5, 16, lambda_list(1,test_iter));
+        [DataList,x1,y1] = gen_obs_cluttered_multi2(TrackNum, x_true, y_true, r_list(test_iter), 16, lambda_list(1,test_iter));
 
         Dt=1;
-%         q = 0.01;
+        q = 0.01;
         % Initiate KF parameters
         nx=4;      %number of state dims
         ny = 2;    %number of observation dims
         n=4;      %number of state
         %q=0.03;    %std of process 
-        r=0.5;    %std of measurement
+        r=r_list(test_iter);    %std of measurement
         %s.Q=[1^3/3, 0, 1^2/2, 0;  0, 1^3/3, 0, 1^2/2; 1^2/2, 0, 1, 0; 0, 1^2/2, 0, 1]*q^2; % covariance of process
         s.R=r^2*eye(n/2);        % covariance of measurement  
-%         s.sys=(@(x)[x(1)+ x(3); x(2)+x(4); x(3); x(4)]);  % assuming measurements arrive 1 per sec
-%         s.Q=[Dt^3/3, 0, Dt^2/2, 0;  0, Dt^3/3, 0, Dt^2/2; Dt^2/2, 0, Dt, 0; 0, Dt^2/2, 0, Dt]*q^2; % covariance of process
-        s.sys=@(x)[x(1)+ x(3)*cos(x(4)); x(2)+x(3)*sin(x(4)); x(3); x(4)];  % nonlinear state equations
-        s.Q = diag([0,0,0.01^2,0.3^2]);
+        s.sys=(@(x)[x(1)+ x(3); x(2)+x(4); x(3); x(4)]);  % assuming measurements arrive 1 per sec
+        s.Q=[Dt^3/3, 0, Dt^2/2, 0;  0, Dt^3/3, 0, Dt^2/2; Dt^2/2, 0, Dt, 0; 0, Dt^2/2, 0, Dt]*q^2; % covariance of process
+%         s.sys=@(x)[x(1)+ x(3)*cos(x(4)); x(2)+x(3)*sin(x(4)); x(3); x(4)];  % nonlinear state equations
+%         s.Q = diag([0,0,0.02^2,0.3^2]);
         s.obs=@(x)[x(1);x(2)];                               % measurement equation
         st=[x_true(1,1);y_true(1,1)];                                % initial state
         s.x_init = [];
         s.P_init = [];
         for i = 1:TrackNum
             % s.x_init(:,i)=[DataList(1,i,2); DataList(2,i,2); 0; DataList(2,i,2)-DataList(2,i,1)]; %initial state
-            s.x_init(:,i)=[x1(2,1); y1(2,1); sqrt((x1(2,1)-x1(1,1))^2+(y1(2,1)-y1(1,1))^2); atan((y1(2,1)+0.1-y1(1,1))/(x1(2,1)+0.1-x1(1,1)))]; %initial state
+            %s.x_init(:,i)=[x1(2,1); y1(2,1); sqrt((x1(2,1)-x1(1,1))^2+(y1(2,1)-y1(1,1))^2); atan((y1(2,1)+0.1-y1(1,1))/(x1(2,1)+0.1-x1(1,1)))]; %initial state
+            s.x_init(:,i)=[x1(2,1); y1(2,1); x1(2,1)-x1(1,1); y1(2,1)-y1(1,1)]; %initial state
         end
         s.P_init = diag([r^2, r^2, 2*r^2, 2*r^2]);                               % initial state covraiance
 
@@ -64,57 +65,53 @@ for test_iter = 1:size(r_list,2)+1
 
          %% Initiate PF parameters
 
+        %% Initiate PF parameters
+        nx = 4;      % number of state dims
+        nu = 4;      % size of the vector of process noise
+        nv = 2;      % size of the vector of observation noise
+        % Prior PDF generator
+        gen_x0_cch = @(Np) mvnrnd(repmat([0,0,0,0],Np,1),diag([q^2, q^2, 100, 100]));
         % Process equation x[k] = sys(k, x[k-1], u[k]);
-        sys_cch = @(k, xkm1, uk) [xkm1(1)+1*xkm1(3)*cos(xkm1(4)); xkm1(2)+1*xkm1(3)*sin(xkm1(4)); xkm1(3)+ uk(3); xkm1(4) + uk(4)];
-
+        sys_cch = @(k, xkm1, uk) [xkm1(1,:)+1*xkm1(3,:).*cos(xkm1(4,:)); xkm1(2,:)+1*xkm1(3,:).*sin(xkm1(4,:)); xkm1(3,:)+ uk(:,3)'; xkm1(4,:) + uk(:,4)'];
+        % PDF of process noise generator function
+        gen_sys_noise_cch = @(u) mvnrnd(zeros(size(u,2), nu), diag([0,0,q^2,0.3^2])); 
         % Observation equation y[k] = obs(k, x[k], v[k]);
         obs = @(k, xk, vk) [xk(1)+vk(1); xk(2)+vk(2)];                  % (returns column vector)
-
-        % PDF of process and observation noise generator function
-        nu = 4;                                           % size of the vector of process noise
-        %sigma_u = q;
-        %cov_u = [Dt^3/3, 0, Dt^2/2, 0;  0, Dt^3/3, 0, Dt^2/2; Dt^2/2, 0, Dt, 0; 0, Dt^2/2, 0, 1]*sigma_u^2;
-        gen_sys_noise_cch = @(u) mvnrnd(zeros(1, nu), diag([0,0,0.01^2,0.3^2])); 
         % PDF of observation noise and noise generator function
-        nv = 2;                                           % size of the vector of observation noise
         sigma_v = r;
         cov_v = sigma_v^2*eye(nv);
         p_obs_noise   = @(v) mvnpdf(v, zeros(1, nv), cov_v);
         gen_obs_noise = @(v) mvnrnd(zeros(1, nv), cov_v);         % sample from p_obs_noise (returns column vector)
-
-        % Initial PDF
-        gen_x0_cch = @(x) mvnrnd([obs_x(1,1), obs_y(1,1), 0, 0],diag([100^2, 100^2, 0, 0]));
-
         % Observation likelihood PDF p(y[k] | x[k])
         % (under the suposition of additive process noise)
         p_yk_given_xk = @(k, yk, xk) p_obs_noise((yk - obs(k, xk, zeros(1, nv)))');
-
-        % Separate memory space
-        %x = [x_true(:,1), y_true(:,1)]';
-        %y = [obs_x(:,1)'; obs_y(:,1)']; % True state and observations
-
         % Assign PF parameter values
         pf.k               = 1;                   % initial iteration number
-        pf.Np              = 2000;                 % number of particles
-        %pf.w               = zeros(pf.Np, T);     % weights
+        pf.Np              = 5000;                 % number of particles
         pf.particles       = zeros(5, pf.Np); % particles
-        %pf.p_x0 = p_x0;                          % initial prior PDF p(x[0])
-        %pf.p_xk_given_ xkm1 = p_xk_given_xkm1;   % transition prior PDF p(x[k] | x[k-1])
-        %pf.xhk = s.x;
         pf.resampling_strategy = 'systematic_resampling';
+        pf.sys = sys_cch;
+        pf.particles = zeros(nx, pf.Np); % particles
+        pf.gen_x0 = gen_x0_cch(pf.Np);
+        pf.obs = p_yk_given_xk;
+        pf.obs_model = @(xk) [xk(1,:); xk(2,:)];
+        pf.R = cov_v;
+        pf.clutter_flag = 1;
+        %pf.multi_flag = 1;
+        pf.sys_noise = gen_sys_noise_cch;
 
         % PF-PCHR
         %pf_pchr = ParticleFilterMin(pf);
 
         % PF-CCH
-        pf.sys = sys_cch;
-        pf.particles = zeros(nx, pf.Np); % particles
-        pf.gen_x0 = gen_x0_cch;
-        pf.obs = p_yk_given_xk;
-        pf.obs_model = @(xk) [xk(1,:); xk(2,:)];
-        pf.R = cov_v;
-        pf.clutter_flag = 1;
-        pf.sys_noise = gen_sys_noise_cch;
+%         pf.sys = sys_cch;
+%         pf.particles = zeros(nx, pf.Np); % particles
+%         pf.gen_x0 = gen_x0_cch;
+%         pf.obs = p_yk_given_xk;
+%         pf.obs_model = @(xk) [xk(1,:); xk(2,:)];
+%         pf.R = cov_v;
+%         pf.clutter_flag = 1;
+%         pf.sys_noise = gen_sys_noise_cch;
 
         % Initiate Tracklist
         TrackList = [];
@@ -128,9 +125,9 @@ for test_iter = 1:size(r_list,2)+1
 
             TrackObj.x          = s.x_init(:,i);
             TrackList{i}.TrackObj = TrackObj;
-            pf.gen_x0 = @(x) mvnrnd([x1(2,1); y1(2,1); sqrt((x1(2,1)-x1(1,1))^2+(y1(2,1)-y1(1,1))^2); atan((y1(2,1)+0.1-y1(1,1))/(x1(2,1)+0.1-x1(1,1)))],diag([sigma_v^2, sigma_v^2, 2*sigma_v^2, 2*sigma_v^2]));
+            pf.gen_x0 = @(x) mvnrnd(repmat([x1(2,1); y1(2,1); sqrt((x1(2,1)-x1(1,1))^2+(y1(2,1)-y1(1,1))^2); atan((y1(2,1)+0.1-y1(1,1))/(x1(2,1)+0.1-x1(1,1)))]',pf.Np,1),diag([sigma_v^2, sigma_v^2, 2*sigma_v^2, 2*r^2]));
             pf.xhk = [s.x_init(1,i),s.x_init(2,i),0,0]';
-            TrackListPF{i}.TrackObj = ParticleFilterMin(pf);
+            TrackListPF{i}.TrackObj = ParticleFilterMin2(pf);
             xh(i,:,1) = pf.xhk;
             %TrackList{i}.TrackObj.x(ObservInd) = CenterData(:,i);
 
@@ -155,7 +152,7 @@ for test_iter = 1:size(r_list,2)+1
         for i=2:N
             clf; % Flip the image upside down before showing it
             %imagesc([min_x max_x], [min_y max_y], flipud(img));
-            axis([0 15 0 10])
+            %axis([0 15 0 10])
             % NOTE: if your image is RGB, you should use flipdim(img, 1) instead of flipud.
 
             hold on;
@@ -169,7 +166,8 @@ for test_iter = 1:size(r_list,2)+1
             for t = 1:TrackNum
                 TrackListPF{t}.TrackObj.pf.k = i;
                 TrackListPF{t}.TrackObj.pf.z = DataList{i};
-                TrackListPF{t}.TrackObj.pf = TrackListPF{t}.TrackObj.Iterate(TrackListPF{t}.TrackObj.pf);
+                TrackListPF{t}.TrackObj.pf = TrackListPF{t}.TrackObj.Predict(TrackListPF{t}.TrackObj.pf);
+                TrackListPF{t}.TrackObj.pf = TrackListPF{t}.TrackObj.Update(TrackListPF{t}.TrackObj.pf);
                 xh(t,:,i) = TrackListPF{t}.TrackObj.pf.xhk;
                 RMSE(t,i) = sqrt((xh(t,1,i) - x1(i,1))^2 + (xh(t,2,i)-y1(i,1))^2);
             end
@@ -188,7 +186,7 @@ for test_iter = 1:size(r_list,2)+1
             h2 = plot(permute(xh(1,1,1:i),[2 3 1]),permute(xh(1,2,1:i),[2 3 1]),'c.-','LineWidth',1);
             h3 = plot(xV_ekf(1,1:i),xV_ekf(2,1:i),'r.-','LineWidth',1);
             h4 = plot(DataList{i}(1,:),DataList{i}(2,:),'k*','MarkerSize', 10);
-            h5 = plot(TrackListPF{1}.TrackObj.pf.particles(1,:),TrackListPF{1}.TrackObj.pf.particles(2,:),'k.', 'MarkerSize', 1)
+            h5 = plot(TrackListPF{1}.TrackObj.pf.particles(1,:),TrackListPF{1}.TrackObj.pf.particles(2,:),'k.', 'MarkerSize', 1);
             h6 = plot(DataList{i}(1,1),DataList{i}(2,1),'r*','MarkerSize', 10);
             h7 = plot(x1(i,1),y1(i,1),'bo','MarkerSize', 20);
             h8 = plot(permute(xh(1,1,i),[2 3 1]),permute(xh(1,2,i),[2 3 1]),'co','MarkerSize', 20, 'LineWidth',2);
@@ -204,23 +202,23 @@ for test_iter = 1:size(r_list,2)+1
             %set(gca,'ydir','normal');
             %axis([0 10 0 10])
              pause(0.1)
-            ax = gca;
-            ax.Units = 'pixels';
-            pos = ax.Position;
-            marg = 30;
-            rect = [-marg, -marg, pos(3)+2*marg, pos(4)+2*marg];
-            F(i) = getframe(gcf);
-            ax.Units = 'normalized';
+%             ax = gca;
+%             ax.Units = 'pixels';
+%             pos = ax.Position;
+%             marg = 30;
+%             rect = [-marg, -marg, pos(3)+2*marg, pos(4)+2*marg];
+%             F(i) = getframe(gcf);
+%             ax.Units = 'normalized';
             
         end
-        F = F(2:end);
-        vidObj = VideoWriter(sprintf('test%d.avi',sim_iter));
-        vidObj.Quality = 100;
-        vidObj.FrameRate = 10;
-        open(vidObj);
-        writeVideo(vidObj, F);
-        close(vidObj);
-        winopen(sprintf('test%d.avi',sim_iter));
+%         F = F(2:end);
+%         vidObj = VideoWriter(sprintf('test%d.avi',sim_iter));
+%         vidObj.Quality = 100;
+%         vidObj.FrameRate = 10;
+%         open(vidObj);
+%         writeVideo(vidObj, F);
+%         close(vidObj);
+%         winopen(sprintf('test%d.avi',sim_iter));
         RMSE_Sim(:,end+1) = mean(RMSE,2);
         lost_Sim(:,end+1) = mean(lost,2);
         PV_err(sim_iter,:,:) = RMSE;

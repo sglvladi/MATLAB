@@ -288,9 +288,12 @@ function NetObj = buildEHMnet_trans(ValidationMatrix, Li)
             for j = 1:size(L_j_Ind, 2)
                 NodeInd = L_j_Ind(j);
                 betta(TrackInd, MeasInd) = betta(TrackInd, MeasInd) + p_T(MeasInd,NodeInd);%p_U(NodeInd)*Li(TrackInd, TrackInd)*p_DT(TrackInd, NodeInd);
+                xsad=2;
             end
         end
     end
+    
+    %if(betta==
 
     % Normalise
     for j = 1:TrackNum

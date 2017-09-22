@@ -1,6 +1,6 @@
 %% Plot settings
 ShowPlots = 1;
-SkipFrames = 0;
+SkipFrames = 1;
 
 %% Initiate PF parameters
 nx = 4;      % number of state dims
@@ -8,7 +8,7 @@ nu = 4;      % size of the vector of process noise
 nv = 2;      % size of the vector of observation noise
 q  = 0.01;   % process noise density (std)
 r  = 0.1;    % observation noise density (std)
-lambdaV = 50; % mean number of clutter points 
+lambdaV = 10; % mean number of clutter points 
 % Prior PDF generator
 gen_x0_cch = @(Np) mvnrnd(repmat([0,0,0,0],Np,1),diag([q^2, q^2, 100, 100]));
 % Process equation x[k] = sys(k, x[k-1], u[k]);
@@ -60,6 +60,7 @@ end
 % end;
 
 %% Initiate PDAF parameters
+Par = [];
 Par.Filter = ParticleFilterMin2(pf);
 Par.DataList = DataList{1}(:,:);
 Par.GroundTruth = GroundTruth;
@@ -124,8 +125,10 @@ figure('units','normalized','outerposition',[0 0 .5 1])
 ax(1) = gca;
 figure('units','normalized','outerposition',[.5 0 .5 1])
 ax(2) = gca;
+
+exec_time = 0;
 for i = 1:N
-    
+    tic;
     fprintf('\nIteraration: %d/%d\n', i, N);
     
     % Remove null measurements   
@@ -183,6 +186,49 @@ for i = 1:N
     end
     TrackNum = size(jpdaf.config.TrackList,2);
     
+    exec_time = exec_time + toc;
+    if(TrackNum>0)
+        % Extract valid tracks
+        ValidTracks = 0;
+        TrackDists = zeros(TrackNum, TrueTracks);
+        for j=1:TrackNum
+            for t=1:TrueTracks
+                if(sqrt((jpdaf.config.TrackList{j}.TrackObj.pf.xhk(1) - x1(i,t))^2 + (jpdaf.config.TrackList{j}.TrackObj.pf.xhk(2)-y1(i,t))^2)<3*r)
+                    TrackDists(j,t) = sqrt((jpdaf.config.TrackList{j}.TrackObj.pf.xhk(1) - x1(i,t))^2 + (jpdaf.config.TrackList{j}.TrackObj.pf.xhk(2)-y1(i,t))^2);
+                else
+                    TrackDists(j,t) = 10^15 + t;
+                end
+            end
+        end
+        [B,I] = sort(TrackDists,1);
+        sorted_inds = I;
+        for t=1:TrueTracks
+            if TrackDists(sorted_inds(1,t),t)>=10^15
+                sorted_inds(1,t) = TrackNum+t;
+            end
+        end
+        if(length(unique(sorted_inds(1,:)))<length(sorted_inds(1,:)))
+            %for j=1:TrackNum
+    %             for t=1:TrueTracks
+    %                 min_inds_tmp = min_inds;
+    %                 min_inds_tmp(t) = [];
+    %                 if(~isempty(intersect(min_inds(t), min_inds_tmp)))
+            %error('Sort error');
+            [B,Ia,Ib] = intersect(unique(sorted_inds(1,:)), sorted_inds(1,:));
+            sorted_inds(1,Ib(1)) =  sorted_inds(2,Ib(1));
+        end
+
+        for t=1:TrueTracks
+            if sorted_inds(1,t)<=TrackNum
+                ValidTracks = ValidTracks+1;
+            end
+        end
+
+        ValidTrackNum_log(i) = ValidTracks;
+    else
+        ValidTrackNum_log(i) = 0;
+    end
+    
     %store Logs
     for j=1:TrackNum
         try
@@ -201,19 +247,22 @@ for i = 1:N
             % Plot data
             cla(ax(1));
              % Flip the image upside down before showing it
-            imagesc([min_x max_x], [min_y max_y], flipud(img));
+            imagesc(ax(1),[min_x max_x], [min_y max_y], flipud(img));
 
             % NOTE: if your image is RGB, you should use flipdim(img, 1) instead of flipud.
 
             hold on;
-%             for j=1:TrackNum
-%                 h2 = plot(Logs{j}.sV_ekf(1,1:i),Logs{j}.sV_ekf(2,1:i),'b.-','LineWidth',1);
-%                 if j==2
-%                     set(get(get(h2,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
-%                 end
-%                 h2 = plot(Logs{j}.sV_ekf(1,i),Logs{j}.sV_ekf(2,i),'bo','MarkerSize', 10);
-%                 set(get(get(h2,'Annotation'),'LegendInformation'),'IconDisplayStyle','off'); % Exclude line from legend
-%             end
+            rectangle(ax(1),'Position',[8.75 4 0.75 3.5])
+            rectangle(ax(1),'Position',[4 6 2 1])
+            rectangle(ax(1),'Position',[1 3 2 2])
+            for j=1:TrueTracks
+                h2 = plot(ax(1), x_true(1:i,j),y_true(1:i,j),'b.-','LineWidth',1);
+                if j==2
+                    set(get(get(h2,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
+                end
+                h2 = plot(ax(1), x_true(i,j),y_true(i,j),'bo','MarkerSize', 10);
+                set(get(get(h2,'Annotation'),'LegendInformation'),'IconDisplayStyle','off'); % Exclude line from legend
+            end
             h2 = plot(ax(1), DataList{i}(1,:),DataList{i}(2,:),'k*','MarkerSize', 10);
             for j=1:TrackNum
                 colour = 'r';
@@ -234,8 +283,8 @@ for i = 1:N
             end
                 % set the y-axis back to normal.
             set(ax(1),'ydir','normal');
-            str = sprintf('Estimated state x_{1,k} vs. x_{2,k}');
-            title(str)
+            str = sprintf('Visualisation of tracking process');
+            title(ax(1),str)
             xlabel('X position (m)')
             ylabel('Y position (m)')
 %            h_legend = legend('Real', 'Meas', 'Target 1', 'Target 2');
@@ -252,16 +301,123 @@ for i = 1:N
             hold on;
             plot(ax(2), myphd.config.z(1,:), myphd.config.z(2,:), 'y*');
             axis(ax(2), [0 10 0 10 0 100]);
+            str = sprintf('Visualisation of PHD search track density');
+            xlabel(ax(2),'X position (m)')
+            ylabel(ax(2),'Y position (m)')
+            zlabel(ax(2),'Intensity')
+            title(ax(2),str)
             pause(0.01)
         end
     end
 end
 
-figure
-plot(1:1184, TrackNum_log)
+% % Plot surveillance region
+% figure('units','centimeters','position',[.1 .1 30 20])
+% imagesc([min_x max_x], [min_y max_y], flipud(img));
+% hold on
+% rectangle('Position',[8.75 4 0.75 3], 'FaceColor', [0.8 0.8 0.8])
+% text(8.8,6.8,'A_3', 'FontWeight', 'bold')
+% rectangle('Position',[4 6 2 1], 'FaceColor', [0.8 0.8 0.8])
+% text(4.05,6.8,'A_2', 'FontWeight', 'bold')
+% rectangle('Position',[1 3 2 2], 'FaceColor', [0.8 0.8 0.8])
+% text(1.05,4.8,'A_1', 'FontWeight', 'bold')
+% h1 = plot(x1(:,1), y1(:,1), 'rx--', 'LineWidth', 2)
+% h2 = plot(x_obstructed(:,1), y_obstructed(:,1), 'r--', 'LineWidth', 2)
+% h3 = plot(x1(:,2), y1(:,2), 'bx--', 'LineWidth', 2)
+% h4 = plot(x_obstructed(:,2), y_obstructed(:,2), 'b--', 'LineWidth', 2)
+% h5 = plot(x1(:,3), y1(:,3), 'cx--', 'LineWidth', 2)
+% h6 = plot(x_obstructed(:,3), y_obstructed(:,3), 'c--', 'LineWidth', 2)
+% set(gca, 'ydir','normal');
+% h_legend = legend([h1, h3, h5], {'Target 1', 'Target 2', 'Target3'}, 'Orientation','horizontal');
+% %tit = "RMS Positional error (\sigma_{m}=";
+% %tit = strcat(tit, sprintf("%0.2fm)",r_list(r_iter)));
+% %title(tit)
+% ylabel("y-coordinate (m)", 'FontSize', 20, 'FontWeight', 'bold')
+% xlabel("x-coordinate (m)", 'FontSize', 20, 'FontWeight', 'bold')
+% set(gca,'FontSize',20)
+% set(h_legend,'FontSize',16);
+% axis([0 10 0 10])
+% box on
+% 
+% % Plot measurement scan
+% figure('units','centimeters','position',[.1 .1 30 20])
+% imagesc([min_x max_x], [min_y max_y], flipud(img));
+% hold on
+% h1 = plot(DataList{1}(1,:),DataList{1}(2,:),'r*','MarkerSize', 10);
+% h2 = plot(DataList{1}(1,1:3),DataList{1}(2,1:3),'k*','MarkerSize', 10);
+% set(gca, 'ydir','normal');
+% h_legend = legend([h2, h1], {'True measurements', 'Clutter measurements'}, 'Orientation','horizontal');
+% %tit = "RMS Positional error (\sigma_{m}=";
+% %tit = strcat(tit, sprintf("%0.2fm)",r_list(r_iter)));
+% %title(tit)
+% ylabel("y-coordinate (m)", 'FontSize', 20, 'FontWeight', 'bold')
+% xlabel("x-coordinate (m)", 'FontSize', 20, 'FontWeight', 'bold')
+% set(gca,'FontSize',20)
+% set(h_legend,'FontSize',16);
+% axis([0 10 0 10])
+% box on
+
+% Plot number of track_estimates
+figure('units','centimeters','position',[.1 .1 30 20])
 hold on
+TrueTrackNum_log = sum(~isnan(x1),2);
+h1 = area(1:1184, TrueTrackNum_log)
+h2 = plot(1:1184, permute(sim_res(2,2,:),[2 3 1]), 'r-','LineWidth', 3)
+h3 = plot(1:1184, permute(sim_res(2,1,:),[2 3 1]), 'g-', 'LineWidth', 3)
+plot(repmat(135,1,6), [0:1:5], 'y--')
+text(135,0.1,'T_1\downarrow', 'FontWeight', 'bold', 'Color', 'yellow', 'FontSize', 12)
+plot(repmat(175,1,6), [0:1:5], 'y--')
+text(175,0.1,'T_1\uparrow', 'FontWeight', 'bold', 'Color', 'yellow', 'FontSize', 12)
+plot(repmat(265,1,6), [0:1:5], 'y--')
+text(265,0.1,'T_3\downarrow', 'FontWeight', 'bold', 'Color', 'yellow', 'HorizontalAlignment','right', 'FontSize', 12)
+plot(repmat(306,1,6), [0:1:5], 'y--')
+text(306,0.1,'T_3\uparrow', 'FontWeight', 'bold', 'Color', 'yellow', 'HorizontalAlignment','right', 'FontSize', 12)
+plot(repmat(339,1,6), [0:1:5], 'y--')
+text(339,0.1,'T_2\downarrow', 'FontWeight', 'bold', 'Color', 'yellow', 'FontSize', 12)
+plot(repmat(380,1,6), [0:1:5], 'y--')
+text(380,0.1,'T_2\uparrow', 'FontWeight', 'bold', 'Color', 'yellow', 'FontSize', 12)
+plot(repmat(432,1,6), [0:1:5], 'y--')
+text(432,0.1,'T_3\downarrow', 'FontWeight', 'bold', 'Color', 'yellow', 'FontSize', 12)
+plot(repmat(471,1,6), [0:1:5], 'y--')
+text(471,0.1,'T_3\uparrow', 'FontWeight', 'bold', 'Color', 'yellow', 'FontSize', 12)
+plot(repmat(630,1,6), [0:1:5], 'y--')
+text(630,0.1,'T_3\downarrow', 'FontWeight', 'bold', 'Color', 'yellow', 'FontSize', 12)
+plot(repmat(729,1,6), [0:1:5], 'y--')
+text(729,0.1,'T_2\downarrow', 'FontWeight', 'bold', 'Color', 'yellow', 'HorizontalAlignment','right', 'FontSize', 12)
+plot(repmat(770,1,6), [0:1:5], 'y--')
+text(770,0.1,'T_2\uparrow', 'FontWeight', 'bold', 'Color', 'yellow', 'HorizontalAlignment','right', 'FontSize', 12)
+plot(repmat(788,1,6), [0:1:5], 'y--')
+text(788,0.1,'T_3\uparrow', 'FontWeight', 'bold', 'Color', 'yellow', 'FontSize', 12)
+plot(repmat(987,1,6), [0:1:5], 'y--')
+text(987,0.1,'T_2\downarrow', 'FontWeight', 'bold', 'Color', 'yellow', 'FontSize', 12)
+plot(repmat(1046,1,6), [0:1:5], 'y--')
+text(1046,0.1,'T_2\uparrow', 'FontWeight', 'bold', 'Color', 'yellow', 'FontSize', 12)
+h_legend = legend([h1, h2, h3], {'True tracks', 'PDAF-LLR-TM', 'PHD-EP-TM'}, 'Orientation','horizontal');
+tit = "Number of targets vs. Time (\lambda_{FA}V=50)";
+%tit = strcat(tit, sprintf("%0.2fm)",r_list(r_iter)));
+title(tit)
+ylabel("Number of tracks", 'FontSize', 20, 'FontWeight', 'bold')
+xlabel("Time (s)", 'FontSize', 20, 'FontWeight', 'bold')
+set(gca,'FontSize',20)
+set(h_legend,'FontSize',16);
+axis([0 1184 0 5])
+box on
+
+% Plot execution times
+figure('units','centimeters','position',[.1 .1 30 20])
+hold on
+h1 = plot(lambda_list, exec_times(1,:), 'gx-');
+h2 = plot(lambda_list, exec_times(2,:), 'rx-');
+h_legend = legend([h2, h1], {'PDAF-LLR-TM', 'PHD-EP-TM'}, 'Orientation','horizontal');
+tit = "Execution time vs. Clutter rate";
+%tit = strcat(tit, sprintf("%0.2fm)",r_list(r_iter)));
+title(tit)
+ylabel("Time (s)", 'FontSize', 20, 'FontWeight', 'bold')
+xlabel("\lambda_{FA}V", 'FontSize', 20, 'FontWeight', 'bold')
+set(gca,'FontSize',20)
+set(h_legend,'FontSize',16);
+axis([0 100 0 700])
+box on
 %TrueTrackNum_log = zeros(size(x_true,1),1);
 %for i = 1:size(x_true,2)
-TrueTrackNum_log = sum(x_true>0,2);
 %end
-plot(1:1184, TrueTrackNum_log)

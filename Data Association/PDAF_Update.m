@@ -18,7 +18,7 @@ function TrackList = PDAF_Update(TrackList,DataList,Validation_matrix)
 TrackNum    = size(TrackList,1);
 % alpha       = 0.3;      % log likelihood forget factor
 PG          = 0.998;      % probability of Gating
-PD          = 0.8;      % probability of Detection
+PD          = 0.99;      % probability of Detection
 GateLevel   = 9;
 
 
@@ -46,8 +46,8 @@ for i=1:TrackNum,
     % basic kalman filter
     innov_err   = z - z_pred(:,ones(1,ValidDataPointNum)); % error (innovation) for each sample
     W           = P_pred*H'*Sinv;                    % Kalman gain matrix
-    Pc          = (eye(size(F,1)) - W*H)*P_pred;
-    %Pc          = P_pred - W*S*W';
+    %Pc          = (eye(size(F,1)) - W*H)*P_pred;
+    Pc          = P_pred - W*S*W';
 
     
     %------------------------------------------------

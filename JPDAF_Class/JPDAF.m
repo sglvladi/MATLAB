@@ -96,7 +96,10 @@ classdef JPDAF <handle
 
                     % Compute New Track/False Alarm density
                     obj.config.bettaNTFA = sum(obj.config.ValidationMatrix(:))/tot_gate_area;
-
+                    if(obj.config.bettaNTFA==0)
+                        obj.config.bettaNTFA=1
+                    end
+                    
                     % Compute Association Likelihoods 
                     Li = zeros(obj.config.TrackNum, PointNum);
                     for j=1:obj.config.TrackNum
@@ -125,9 +128,53 @@ classdef JPDAF <handle
                     end
                     obj.config.NetList = NetList;
                     obj.config.betta = betta;
+                else
+                    GateLevel   = 5; % 98.9% of data in gate
+                    %TrackNum    = size(TrackList,2);
+                    PointNum    = size(obj.config.DataList,2);
+                    ObsDim      = size(obj.config.DataList,1);
+                    C = pi; % volume of the 2-dimensional unit hypersphere (change for different Dim no)
+
+
+                    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                    % variables
+                    tot_gate_area = 0;
+
+                    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                    % check un-initalized tracks (state 0)
+                    %for i=1:TrackNum,
+                    %    if TrackList{i}.TrackObj.State == Par.State_Undefined, error('Undefined Tracking object'); end;
+                    %end;
+
+                    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                    % find associated data
+                    % init association matrix
+                    DistM = ones(obj.config.TrackNum,size(obj.config.DataList,2))*1000;
+                    for i=1:obj.config.TrackNum
+
+                        % extract track coordinates and covariance
+                        obj.config.TrackList{i}.TrackObj.s = obj.config.TrackList{i}.TrackObj.Predict(obj.config.TrackList{i}.TrackObj.s);
+                        tot_gate_area = tot_gate_area + C*obj.config.GateLevel^(ObsDim/2)*det( obj.config.TrackList{i}.TrackObj.s.S)^(1/2);
+
+                        % measure points
+                        for j=1:PointNum
+
+                            % distance
+                            DistM(i,j)  = mahalDist(obj.config.DataList(:,j), obj.config.TrackList{i}.TrackObj.s.z_pred, obj.config.TrackList{i}.TrackObj.s.S, 2); 
+
+                        end
+
+                    end
+                    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                    % thresholding/gating validation
+                    obj.config.ValidationMatrix = DistM < obj.config.GateLevel;
+                    
+                    obj.config.bettaNTFA = sum(ValidationMatrix(:))/tot_gate_area;
                 end
             else
                 fprintf('No tracks where found. Skipping JPDAF Predict step...\n');
+                obj.config.ValidationMatrix = zeros(1, size(obj.config.DataList,2));
+                obj.config.bettaNTFA = 0;
                 obj.config.betta = -1; % Set betta to -1
             end
         end
@@ -136,6 +183,8 @@ classdef JPDAF <handle
             if(~isempty(obj.config.TrackList))
                 if(isa(obj.config.TrackList{1}.TrackObj,'ParticleFilterMin2'))
                     obj.PF_Update();
+                else
+                    obj.KF_Update();
                 end
             else
                 fprintf('No tracks where found. Skipping JPDAF Update step...\n');
@@ -208,8 +257,12 @@ classdef JPDAF <handle
                    % Compute likelihood ratios
                     ClustMeasIndList=[];
                     for j=1:size(DataInd,2)
-                       ClustMeasIndList(j) = unique(find(obj.config.ClusterList{cluster_id}.MeasIndList==DataInd(j)));
-                    end    
+                       try
+                        ClustMeasIndList(j) = unique(find(obj.config.ClusterList{cluster_id}.MeasIndList==DataInd(j)));
+                       catch
+                           error('f');
+                       end    
+                    end
                     ClustTrackInd = find(obj.config.ClusterList{cluster_id}.TrackIndList==i); % T1 is the false alarm
 
                     % Extract betta for target
@@ -247,38 +300,42 @@ classdef JPDAF <handle
             %% Form clusters of tracks sharing measurements
             clusters = {};
             if(clustering)
-                % Measurement Clustering
-                for i=1:TrackNum % Iterate over all tracks 
-                    matched =[];
-                    temp_clust = find(ValidationMatrix(i,:)); % Extract associated measurements
+                if(isfield(obj.config, 'pdaf'))
+                    % Do nothing
+                else
+                    % Measurement Clustering
+                    for i=1:TrackNum % Iterate over all tracks 
+                        matched =[];
+                        temp_clust = find(ValidationMatrix(i,:)); % Extract associated measurements
 
-                    % If track matched with any measurements
-                    if (~isempty(temp_clust))   
-                        % Check if matched measurements are members of any clusters
-                        for j=1:size(clusters,2)
-                            a = ismember(temp_clust, cell2mat(clusters(1,j)));
-                            if (ismember(1,a)~=0)
-                                matched = [matched, j]; % Store matched cluster ids
-                            end   
-                        end
-
-                        % If only matched with a single cluster, join.
-                        if(size(matched,2)==1) 
-                            clusters{1,matched(1)}=union(cell2mat(clusters(1,matched(1))), temp_clust);
-                        elseif (size(matched,2)>1) % If matched with more that one clusters
-                            matched = sort(matched); % Sort cluster ids
-                            % Start from last cluster, joining each one with the previous
-                            %   and removing the former.  
-                            for match_ind = size(matched,2)-1:-1:1
-                                clusters{1,matched(match_ind)}=union(cell2mat(clusters(1,matched(match_ind))), cell2mat(clusters(1,matched(match_ind+1))));
-                                clusters(:,matched(match_ind+1))=[];
+                        % If track matched with any measurements
+                        if (~isempty(temp_clust))   
+                            % Check if matched measurements are members of any clusters
+                            for j=1:size(clusters,2)
+                                a = ismember(temp_clust, cell2mat(clusters(1,j)));
+                                if (ismember(1,a)~=0)
+                                    matched = [matched, j]; % Store matched cluster ids
+                                end   
                             end
-                            % Finally, join with associated track.
-                            clusters{1,matched(match_ind)}=union(cell2mat(clusters(1,matched(match_ind))), temp_clust);
-                        else % If not matched with any cluster, then create a new one.
-                            clusters{1,size(clusters,2)+1} = temp_clust;
-                        end
-                     end
+
+                            % If only matched with a single cluster, join.
+                            if(size(matched,2)==1) 
+                                clusters{1,matched(1)}=union(cell2mat(clusters(1,matched(1))), temp_clust);
+                            elseif (size(matched,2)>1) % If matched with more that one clusters
+                                matched = sort(matched); % Sort cluster ids
+                                % Start from last cluster, joining each one with the previous
+                                %   and removing the former.  
+                                for match_ind = size(matched,2)-1:-1:1
+                                    clusters{1,matched(match_ind)}=union(cell2mat(clusters(1,matched(match_ind))), cell2mat(clusters(1,matched(match_ind+1))));
+                                    clusters(:,matched(match_ind+1))=[];
+                                end
+                                % Finally, join with associated track.
+                                clusters{1,matched(match_ind)}=union(cell2mat(clusters(1,matched(match_ind))), temp_clust);
+                            else % If not matched with any cluster, then create a new one.
+                                clusters{1,size(clusters,2)+1} = temp_clust;
+                            end
+                         end
+                    end
                 end
             else
                 % Measurement Clustering
@@ -301,16 +358,24 @@ classdef JPDAF <handle
             ClusterList = [];
             ClusterObj.MeasIndList = [];
             ClusterObj.TrackIndList = [];
-            for c=1:size(clusters,2)
-                ClusterList{c} = ClusterObj;
-                ClusterList{c}.MeasIndList = unique(clusters{1,c}(:)');
+            if(isfield(obj.config, 'pdaf'))
+                for i=1:TrackNum
+                    ClusterList{i} = ClusterObj;
+                    ClusterList{i}.MeasIndList = find(ValidationMatrix(i,:));
+                    ClusterList{i}.TrackIndList = i;
+                end
+            else
+                for c=1:size(clusters,2)
+                    ClusterList{c} = ClusterObj;
+                    ClusterList{c}.MeasIndList = unique(clusters{1,c}(:)');
 
-                % If we are currently processing the cluster of unassociated tracks 
-                if(isempty(ClusterList{c}.MeasIndList))
-                    ClusterList{c}.TrackIndList = unique(union(ClusterList{c}.TrackIndList, find(all(ValidationMatrix==0))));
-                else
-                    for i = 1:size(ClusterList{c}.MeasIndList,2) 
-                        ClusterList{c}.TrackIndList = unique(union(ClusterList{c}.TrackIndList, find(ValidationMatrix(:,ClusterList{c}.MeasIndList(i)))));
+                    % If we are currently processing the cluster of unassociated tracks 
+                    if(isempty(ClusterList{c}.MeasIndList))
+                        ClusterList{c}.TrackIndList = unique(union(ClusterList{c}.TrackIndList, find(all(ValidationMatrix==0))));
+                    else
+                        for i = 1:size(ClusterList{c}.MeasIndList,2) 
+                            ClusterList{c}.TrackIndList = unique(union(ClusterList{c}.TrackIndList, find(ValidationMatrix(:,ClusterList{c}.MeasIndList(i)))));
+                        end
                     end
                 end
             end

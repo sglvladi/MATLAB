@@ -21,6 +21,14 @@ classdef KalmanFilter_new
             % Prediction for state vector and covariance:
             s.x = s.sys*s.x + s.B*s.u;
             s.P = s.sys*s.P*s.sys' + s.Q;
+            
+            s.x_pred = s.x;
+            s.P_pred = s.P;
+            s.F = s.sys;
+            s.H = s.obs;
+            s.z_pred = s.obs*s.x;
+            s.S =s.obs*s.P*s.obs'+s.R;
+            
         end
         
         
