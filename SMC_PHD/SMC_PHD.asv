@@ -284,7 +284,7 @@ classdef SMC_PHD < handle
                 config.w(:, Np_n+1:end) = 0.2/(config.Np-Np_n);
                 config.Np_total = config.Np;
             elseif(strcmp(config.birth_strategy, 'obs_oriented'))
-                config.J_k = size(config.z,2)*100;
+                config.J_k = size(config.z,2)*00;
                 % Expand number of particles to accomodate for births
                 config.particles = [config.particles, zeros(4, config.J_k)]; 
                 config.w = [config.w, zeros(1, config.J_k)];
