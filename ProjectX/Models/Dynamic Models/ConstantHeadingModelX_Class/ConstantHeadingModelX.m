@@ -1,4 +1,4 @@
-classdef ConstantHeadingModelX < handle
+classdef ConstantHeadingModelX <  matlab.mixin.Copyable % Handle class with copy functionality
     % ConstantHeadingModelX class
     %
     % Summary of ConstantHeadingModelX

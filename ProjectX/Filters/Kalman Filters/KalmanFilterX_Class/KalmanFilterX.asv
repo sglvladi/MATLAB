@@ -5,28 +5,37 @@ classdef KalmanFilterX < matlab.mixin.Copyable % Handle class with copy function
     % This is a class implementation of a vanilla Kalman Filter.
     %
     % KalmanFilterX Properties:
-    %    - config   = structure with fields:
+    %   
+    %   - DynModel          = Object handle to a DynamicModelX object
+    %   - ObsModel          = Object handle to an ObservationModelX object
+    %   - CtrModel (*)      = Object handle to a ControlModelX object
+    %   - Init     (*)      = Initial settings structure with fields
+    %       .timeIndex      = Time index. Can also act as a time interval (Dt), depending on the underlying models. Default = 1
+    %       .x_init         = Prior distribution mean. Default = Empty (Copied into Params.x on instantiation)
+    %       .P_init         = Prior distribution mean. Default = Empty (Copied into Params.P on instantiation)
+    %       .u_init         = Inital control input. Only applies if CtrModel has been provided. Default = 0; (Copied into Params.u on instantiation)
+    %
+    %   Runtime parameters - Computed and modified internally, but can be directly accessed at any time
+    %   ~~~~~~~~~~~~~~~~~~
+    %   - Params   = structure with fields:
     %       .k          = time index. Can also act as a time interval (Dt), depending on the underlying models. 
-    %       .x (*)      = Estimated state mean (x_{k|k}) - (nx x 1) column vector, where nx is the dimensionality of the state
-    %       .P (*)      = Estimated state covariance (P_{k|k}) - (nx x nx) matrix 
+    %       .x          = Estimated state mean (x_{k|k}) - (nx x 1) column vector, where nx is the dimensionality of the state
+    %       .P          = Estimated state covariance (P_{k|k}) - (nx x nx) matrix 
     %       .x_pred     = Predicted state mean (x_{k|k-1}) - (nx x 1) column vector
     %       .P_pred     = Predicted state mean (P_{k|k-1}) - (nx x nx) matrix
     %       .y          = Measurement (y_k) - (ny x 1) column vector, where ny is the dimensionality of the measurement
     %       .y_Pred     = Predicted measurement mean (H*x_{k|k-1}) - (ny x 1) column vector
     %       .S          = Innovation covariance (S_k) - (ny x ny) column vector
-    %       .K          = Kalman Gain (K_k) - (ny x ny) column vector
-    %   
-    %   - dyn_model (*)       = Object handle to Dynamic Model Class
-    %   - obs_model (*)   = Object handle to Observation Model Class
+    %       .K          = Kalman Gain (K_k) - (nx x ny) column vector
     %
-    %   (*) Signifies properties necessary to instantiate a class object
+    %   (*) Optional
     %
     % KalmanFilterX Methods:
     %    KalmanFilterX  - Constructor method
-    %    Predict        - Performs KF prediction step
-    %    Update         - Performs KF update step
-    %    Iterate        - Performs a complete KF iteration (Predict & Update)
-    %    Smooth         - Performs KF smoothing on a provided set of estimates
+    %    predict        - Performs KF prediction step
+    %    update         - Performs KF update step
+    %    iterate        - Performs a complete KF iteration (Predict & Update)
+    %    smooth         - Performs KF smoothing on a provided set of estimates
     % 
     % KalmanFilterX Example:
     %     N = 500; % Simulate 500 seconds/iterations
@@ -91,9 +100,10 @@ classdef KalmanFilterX < matlab.mixin.Copyable % Handle class with copy function
     %     plot(s(1,:),s(2,:),'.-k', x_filtered(1,:), x_filtered(2,:), 'o-b', x_smoothed(1,:), x_smoothed(2,:), 'x-r');
     
      properties
-        config
-        dyn_model
-        obs_model
+        Config
+        DynModel
+        ObsModel
+        CtrModel
     end
     methods
         function obj = KalmanFilterX(config, dyn_model, obs_model)
@@ -182,11 +192,11 @@ classdef KalmanFilterX < matlab.mixin.Copyable % Handle class with copy function
             end
         
             % Compute Kalman gain
-            obj.config.K = obj.config.P_pred * obj.obs_model.config.H(obj.config.k)' / (obj.config.S);
+            obj.config.K = obj.config.P_pred * obj.obs_model.config.h(obj.config.k)' / (obj.config.S);
 
             % Compute filtered estimates
             obj.config.x = obj.config.x_pred + obj.config.K * (obj.config.y - obj.config.y_pred);
-            obj.config.P = obj.config.P_pred - obj.config.K * obj.obs_model.config.H(obj.config.k) * obj.config.P_pred;
+            obj.config.P = obj.config.P_pred - obj.config.K * obj.obs_model.config.h(obj.config.k) * obj.config.P_pred;
         end
         
         function UpdateMulti(obj, assocWeights)
@@ -208,11 +218,14 @@ classdef KalmanFilterX < matlab.mixin.Copyable % Handle class with copy function
             ObsDim = size(obj.config.y,1); 
             
             if(~ObsNum)
-                warning('[PF] No measurements have been supplied to update track! Skipping Update step...');
+                warning('[KF] No measurements have been supplied to update track! Skipping Update step...');
+                obj.config.x = obj.config.x_pred;
+                obj.config.P = obj.config.P_pred;
                 return;
             end
             
-            if(~exist('assoc_weights','var'))
+            if(~exist('assocWeights','var'))
+                warning('[KF] No association weights have been supplied to update track! Applying default "assocWeights = [0, ones(1,ObsNum)/ObsNum];"...');
                 assocWeights = [0, ones(1,ObsNum)/ObsNum]; % (1 x Nm+1)
             end
             
@@ -221,7 +234,7 @@ classdef KalmanFilterX < matlab.mixin.Copyable % Handle class with copy function
             obj.config.K   = obj.config.P_pred*obj.obs_model.config.h(obj.config.k)'/obj.config.S;  
 
             % update
-            Pc              = (eye(size(obj.obs_model.f(obj.config.k),1)) - W*obj.config.h(obj.config.k)*P_pred;
+            %Pc              = (eye(size(obj.config.x,1)) - obj.config.K*obj.obs_model.config.h(obj.config.k))*obj.config.P_pred;
             Pc              = obj.config.P_pred - obj.config.K*obj.config.S*obj.config.K';
             tot_innov_err   = innov_err*assocWeights(2:end)';
             Pgag            = obj.config.K*((innov_err.*assocWeights(ones(ObsDim,1),2:end))*innov_err' - tot_innov_err*tot_innov_err')*obj.config.K';

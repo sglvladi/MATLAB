@@ -106,10 +106,9 @@ classdef PositionalObsModel < handle
         %       y_k: a (ny x Ns) matrix of Ns state vectors, which have been projected in the measurement-space   
         %
         %   Usage:
-        %   y_k = pos.obs(~) returns the linear matrix H
-        %   y_k = pos.obs(~, x_k) projects the (nx x Ns) state vector x_k through the observation model, without the inclusion of noise
-        %   y_k = pos.obs(~, x_k, pos.obs_noise(Ns)) projects the (nx x Ns) particle matrix x_k through the observation model, including randomly generated noise by using the PositionalObsModel.obs_noise function.
-        %   y_k = pos.obs(~, x_k, vk) propagates the (nx x Ns) state vector x_k through the observation model, including an externally computed (ny x Ns) noise matrik vk 
+        %   y_k = pos.obs(x_k) projects the (nx x Ns) state vector x_k through the observation model, without the inclusion of noise
+        %   y_k = cv.sys(x_k, pos.obs_noise(Ns)) projects the (nx x Ns) particle matrix x_k through the observation model, including randomly generated noise by using the PositionalObsModel.obs_noise function.
+        %   y_k = cv.sys(x_k, vk) propagates the (nx x Ns) state vector x_k through the observation model, including an externally computed (ny x Ns) noise matrik vk 
         %
         %   See also obs_cov, obs_noise, sample, eval_likelihood.
             
