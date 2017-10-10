@@ -1,20 +1,20 @@
 %% Plot settings
 ShowPlots = 1;
-SkipFrames = 1;
+SkipFrames = 0;
 
 %% Initiate PF parameters
 nx = 4;      % number of state dims
 nu = 4;      % size of the vector of process noise
 nv = 2;      % size of the vector of observation noise
 q  = 0.01;   % process noise density (std)
-r  = 0.1;    % observation noise density (std)
-lambdaV = 10; % mean number of clutter points 
+r  = 0.3;    % observation noise density (std)
+lambdaV = 1; % mean number of clutter points 
 % Prior PDF generator
 gen_x0_cch = @(Np) mvnrnd(repmat([0,0,0,0],Np,1),diag([q^2, q^2, 100, 100]));
 % Process equation x[k] = sys(k, x[k-1], u[k]);
 sys_cch = @(k, xkm1, uk) [xkm1(1,:)+1*xkm1(3,:).*cos(xkm1(4,:)); xkm1(2,:)+1*xkm1(3,:).*sin(xkm1(4,:)); xkm1(3,:)+ uk(:,3)'; xkm1(4,:) + uk(:,4)'];
 % PDF of process noise generator function
-gen_sys_noise_cch = @(u) mvnrnd(zeros(size(u,2), nu), diag([0,0,q^2,0.3^2])); 
+gen_sys_noise_cch = @(Np) mvnrnd(zeros(Np, nu), diag([0,0,q^2,0.3^2])); 
 % Observation equation y[k] = obs(k, x[k], v[k]);
 obs = @(k, xk, vk) [xk(1)+vk(1); xk(2)+vk(2)];                  % (returns column vector)
 % PDF of observation noise and noise generator function
@@ -83,10 +83,10 @@ par.particles = par.gen_x0(par.Np)';                                        % Ge
 par.w = repmat(1/par.Np, par.Np, 1)';                                       % Uniform weights
 par.likelihood = @(k, yk, xk) mvnpdf(yk, xk, cov_v);                        % Likelihood model p(y|x)
 par.obs_model = @(xk) [xk(1,:); xk(2,:)];                                   % Observation model (no noise)
-par.sys_noise = gen_sys_noise_cch;                                          % System noise
+par.sys_noise = @(Np) mvnrnd(zeros(Np, nu), diag([0,0,q^2,0.3^2]));                                         % System noise
 par.Pbirth = 0.1;                                                           % Birth probability
 par.Pdeath = 0.005;                                                         % Death probability
-par.J_k = 5000;                                                             % Number of birth particles (births by "expansion")
+par.J_k = 500;                                                             % Number of birth particles (births by "expansion")
 par.PD = 0.9;                                                               % Probability of detection
 par.lambda = lambdaV/(10^2);                                                % Mean clutter per unit area
 par.Np_conf = pf.Np;                                                        % Number of particles for confirmed tracks
@@ -139,7 +139,7 @@ for i = 1:N
     jpdaf.config.DataList = DataList_k; % New observations
     
     % Change PHD filter parameters
-    myphd.config.k = i; % Time index
+    myphd.config.k = 1; % Time index
     myphd.config.z = DataList_k; % New observations
     
     % 1) Predict the confirmed tracks

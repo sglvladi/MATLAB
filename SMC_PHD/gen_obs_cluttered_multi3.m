@@ -1,6 +1,5 @@
-function [DataList, x, y] = gen_obs_cluttered_multi3(TrackNum, x_true, y_true, q , q_clutter, lambda, increment)
-%     q = 0.5
-%     q_clutter = 8;
+function [DataList, x, y] = gen_obs_cluttered_multi3(TrackNum, x_true, y_true, q , lambda, increment)
+
     DataList = {};
     k=1;
     x = [];

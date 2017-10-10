@@ -77,6 +77,7 @@ classdef JPDAF <handle
         end
         
         function Predict(obj)
+            obj.config.TrackNum = size( obj.config.TrackList,2);
             if(~isempty(obj.config.TrackList))
                 
                 if(isa(obj.config.TrackList{1}.TrackObj,'ParticleFilterMin2')) 

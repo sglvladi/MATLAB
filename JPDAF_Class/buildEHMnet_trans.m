@@ -6,10 +6,10 @@
 %       (normally executed for each cluster)
 %
 %   Input:
-%       ValidationMatrix    - Matrix (M x T) containing all possible measurement
+%       ValidationMatrix    - Matrix (T x M) containing all possible measurement
 %                             to track associations (for cluster of interest).
 %                             (Output from ObservationAssociation.m)
-%       Li                  - Matrix (M x T) containing association likelihoods
+%       Li                  - Matrix (T x M) containing association likelihoods
 %       (M: number of measurements, including dummy at index 1)
 %       (T: number of tracks)
 %

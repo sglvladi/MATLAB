@@ -1,4 +1,4 @@
-function [jpdaf, jpdaf_init] = Track_InitConfDel(jpdaf, jpdaf_init)
+function [jpdaf, jpdaf_init] = Track_InitConfDelRadar(jpdaf, jpdaf_init)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Track_Maintenance - Performs track initiation, confirmation and deletion 
 % Input:
@@ -27,10 +27,10 @@ function [jpdaf, jpdaf_init] = Track_InitConfDel(jpdaf, jpdaf_init)
     ObsDim      = size(DataList,1);
     P_TM = 0.1;                         % Track miss probability (from Blackman & Popoli)
     P_FC = 10^-6;                     % False confirm probability (from Blackman & Popoli)
-    P_D = 0.8;                          % Probability of detection
+    P_D = 0.9;                          % Probability of detection
     P_G = 0.998;                          % Probability of gating
     THD = -5.9;                         % Deletion threshold diff (from Blackman & Popoli)
-    Vmax = 0.4;
+    %Vmax = 0.4;
     
     % High and low thresholds for confirmation and deletion
     %  of tentative tracks
@@ -140,44 +140,45 @@ function [jpdaf, jpdaf_init] = Track_InitConfDel(jpdaf, jpdaf_init)
     s.x_init = [];
     s.P_init = [];
     
-    % Initiate PF parameters
-    nx = 4;      % number of state dims
-    nu = 4;      % size of the vector of process noise
-    nv = 2;      % size of the vector of observation noise
-    q  = 0.5;   % process noise density (std)
-    r  = 2;    % observation noise density (std)
-    
-    lambdaV = 5; % mean number of clutter points 
-    % Prior PDF generator
-    gen_x0_cch = @(Np) mvnrnd(repmat([0,0,0,0],Np,1),diag([q^2, q^2, 100, 0.3]));
-    % Process equation x[k] = sys(k, x[k-1], u[k]);
-    sys_cch = @(k, xkm1, uk) [xkm1(1,:)+2*xkm1(3,:).*cos(xkm1(4,:)); xkm1(2,:)+2*xkm1(3,:).*sin(xkm1(4,:)); xkm1(3,:)+ uk(:,3)'; xkm1(4,:) + uk(:,4)'];
-    % PDF of process noise generator function
-    gen_sys_noise_cch = @(u) mvnrnd(zeros(size(u,2), nu), diag([0,0,q^2,0.3^2])); 
-    % Observation equation y[k] = obs(k, x[k], v[k]);
-    obs = @(k, xk, vk) [xk(1)+vk(1); xk(2)+vk(2)];                  % (returns column vector)
-    % PDF of observation noise and noise generator function
-    sigma_v = r;
-    cov_v = sigma_v^2*eye(nv);
-    p_obs_noise   = @(v) mvnpdf(v, zeros(1, nv), cov_v);
-    gen_obs_noise = @(v) mvnrnd(zeros(1, nv), cov_v);         % sample from p_obs_noise (returns column vector)
-    % Observation likelihood PDF p(y[k] | x[k])
-    % (under the suposition of additive process noise)
-    p_yk_given_xk = @(k, yk, xk) p_obs_noise((yk - obs(k, xk, zeros(1, nv)))');
-    % Assign PF parameter values
-    pf.k               = 1;                   % initial iteration number
-    pf.Np              = 5000;                 % number of particles
-    pf.particles       = zeros(5, pf.Np); % particles
-    pf.resampling_strategy = 'systematic_resampling';
-    pf.sys = sys_cch;
-    pf.particles = zeros(nx, pf.Np); % particles
-    pf.gen_x0 = gen_x0_cch(pf.Np);
-    pf.obs = p_yk_given_xk;
-    pf.obs_model = @(xk) [xk(1,:); xk(2,:)];
-    pf.R = cov_v;
-    pf.clutter_flag = 1;
-    pf.multi_flag = 1;
-    pf.sys_noise = gen_sys_noise_cch;
+   %% Initiate PF parameters
+nx = 4;      % number of state dims
+nu = 4;      % size of the vector of process noise
+nv = 2;      % size of the vector of observation noise
+q  = 0.5;   % process noise density (std)
+r  = 2;    % observation noise density (std)
+lambdaV = 5; % mean number of clutter points 
+V_bounds = [-700 -400 -700 400]; % [x_min x_max y_min y_max]
+V = (abs(V_bounds(2)-V_bounds(1))*abs(V_bounds(4)-V_bounds(3)));
+% Prior PDF generator
+gen_x0_cch = @(Np) mvnrnd(repmat([0,0,0,0],Np,1),diag([q^2, q^2, 100, 100]));
+% Process equation x[k] = sys(k, x[k-1], u[k]);
+sys_cch = @(k, xkm1, uk) [xkm1(1,:)+k*xkm1(3,:).*cos(xkm1(4,:)); xkm1(2,:)+k*xkm1(3,:).*sin(xkm1(4,:)); xkm1(3,:)+ uk(:,3)'; xkm1(4,:) + uk(:,4)'];
+% PDF of process noise generator function
+gen_sys_noise_cch = @(u) mvnrnd(zeros(size(u,2), nu), diag([0,0,q^2,0.3^2])); 
+% Observation equation y[k] = obs(k, x[k], v[k]);
+obs = @(k, xk, vk) [xk(1)+vk(1); xk(2)+vk(2)];                  % (returns column vector)
+% PDF of observation noise and noise generator function
+sigma_v = r;
+cov_v = sigma_v^2*eye(nv);
+p_obs_noise   = @(v) mvnpdf(v, zeros(1, nv), cov_v);
+gen_obs_noise = @(v) mvnrnd(zeros(1, nv), cov_v);         % sample from p_obs_noise (returns column vector)
+% Observation likelihood PDF p(y[k] | x[k])
+% (under the suposition of additive process noise)
+p_yk_given_xk = @(k, yk, xk) p_obs_noise((yk - obs(k, xk, zeros(1, nv)))');
+% Assign PF parameter values
+pf.k               = 1;                   % initial iteration number
+pf.Np              = 5000;                 % number of particles
+pf.particles       = zeros(5, pf.Np); % particles
+pf.resampling_strategy = 'systematic_resampling';
+pf.sys = sys_cch;
+pf.particles = zeros(nx, pf.Np); % particles
+pf.gen_x0 = gen_x0_cch(pf.Np);
+pf.obs = p_yk_given_xk;
+pf.obs_model = @(xk) [xk(1,:); xk(2,:)];
+pf.R = cov_v;
+pf.clutter_flag = 1;
+pf.multi_flag = 1;
+pf.sys_noise = gen_sys_noise_cch;
     pf.ExistProb = 0.5;
     
     % Two-point difference initiation
@@ -231,7 +232,7 @@ function [jpdaf, jpdaf_init] = Track_InitConfDel(jpdaf, jpdaf_init)
                 TrackList{TrackInd}.TrackObj.pf.Status = 1; % Confirm track
                 jpdaf.config.TrackList{end+1} = TrackList{TrackInd};
                 DeletedTracks(end+1) = TrackInd;
-            elseif (TrackList{TrackInd}.TrackObj.pf.LPR<gamma_low)
+            elseif (TrackList{TrackInd}.TrackObj.pf.LPR<gamma_low || isnan(TrackList{TrackInd}.TrackObj.pf.LPR))
                 DeletedTracks(end+1) = TrackInd;
                 %TrackList{TrackInd} = []; % Delete Track
             end
@@ -255,7 +256,7 @@ function [jpdaf, jpdaf_init] = Track_InitConfDel(jpdaf, jpdaf_init)
     for i=1:numel(UnassocMeasInd)
         %warning('Initiating track');
         MeasInd = UnassocMeasInd(i);
-        pf.gen_x0 = @(Np) mvnrnd(repmat([DataList(1,MeasInd), DataList(2,MeasInd), 0, 0],Np,1),diag([q^2, q^2, 10^2, 4*pi^2]));
+        pf.gen_x0 = @(Np) [mvnrnd(repmat([DataList(1,MeasInd), DataList(2,MeasInd)],Np,1),cov_v), 5^2*rand(Np,1), 2*pi*rand(Np,1)];
         %s.x = [DataList(1,MeasInd); DataList(2,MeasInd); 0; 0]; %initial state
         %s.P = diag([q^2, q^2, (Vmax^2/3), (Vmax^2/3)]);
         pf.Status = 0;

@@ -5,8 +5,8 @@ classdef KalmanFilter_new
     end
     methods
         function obj = KalmanFilter_new(prop)
-            if ~isfield(prop,'x'); error('Initial state mean missing'); end
-            if ~isfield(prop,'P'); error('Initial state covariance missing'); end
+%             if ~isfield(prop,'x'); error('Initial state mean missing'); end
+%             if ~isfield(prop,'P'); error('Initial state covariance missing'); end
             if ~isfield(prop,'z'); prop.z = []; end
             if ~isfield(prop,'u'); prop.u=0; end
             if ~isfield(prop,'sys'); prop.sys=eye(width(x)); end

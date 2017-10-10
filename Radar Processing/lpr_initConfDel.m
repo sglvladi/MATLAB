@@ -1,18 +1,18 @@
 %% Plot settings
 ShowPlots = 1;
-SkipFrames = 0;
+SkipFrames = 5;
 
 %% Initiate PF parameters
 nx = 4;      % number of state dims
 nu = 4;      % size of the vector of process noise
 nv = 2;      % size of the vector of observation noise
-q  = 0.5;   % process noise density (std)
-r  = 2;    % observation noise density (std)
-lambdaV = 5; % mean number of clutter points 
+q  = 2;   % process noise density (std)
+r  = 50;    % observation noise density (std)
+lambdaV = 50; % mean number of clutter points 
 % Prior PDF generator
 gen_x0_cch = @(Np) mvnrnd(repmat([0,0,0,0],Np,1),diag([q^2, q^2, 100, 100]));
 % Process equation x[k] = sys(k, x[k-1], u[k]);
-sys_cch = @(k, xkm1, uk) [xkm1(1,:)+2*xkm1(3,:).*cos(xkm1(4,:)); xkm1(2,:)+2*xkm1(3,:).*sin(xkm1(4,:)); xkm1(3,:)+ 2*uk(:,3)'; xkm1(4,:) + 2*uk(:,4)'];
+sys_cch = @(k, xkm1, uk) [xkm1(1,:)+k*xkm1(3,:).*cos(xkm1(4,:)); xkm1(2,:)+k*xkm1(3,:).*sin(xkm1(4,:)); xkm1(3,:)+ uk(:,3)'; xkm1(4,:) + uk(:,4)'];
 % PDF of process noise generator function
 gen_sys_noise_cch = @(u) mvnrnd(zeros(size(u,2), nu), diag([0,0,q^2,0.3^2])); 
 % Observation equation y[k] = obs(k, x[k], v[k]);
@@ -48,9 +48,9 @@ TrueTracks = 3;
 %[DataList,x1,y1] = gen_obs_cluttered_multi2(TrueTracks, x_true, y_true, r, 2, lambdaV, 1);
 
 %% Get GroundTruth
-for i=1:TrueTracks
-    GroundTruth{i} = [x_true(:,i), y_true(:,i)]; % ith target's GroundTruth
-end
+% for i=1:TrueTracks
+%     GroundTruth{i} = [x_true(:,i), y_true(:,i)]; % ith target's GroundTruth
+% end
 
 %% Initiate TrackList
 % for i=1:TrackNum,
@@ -63,9 +63,9 @@ end
 Par = [];
 Par.Filter = ParticleFilterMin2(pf);
 Par.DataList = DataList{1}(:,:);
-Par.GroundTruth = GroundTruth;
+%Par.GroundTruth = GroundTruth;
 Par.TrackList = [];
-Par.PD = 0.8;
+Par.PD = 0.9;
 Par.PG = 0.998;
 Par.GateLevel = 5;
 Par.Pbirth = 0.001;
@@ -77,7 +77,7 @@ par.k               = 1;                                                    % in
 par.Np              = 10000;                                                % number of particles
 par.resampling_strategy = 'systematic_resampling';                          % resampling strategy
 par.birth_strategy = 'mixture';                                           %  
-par.sys = @(k, xkm1, uk) [xkm1(1,:)+2*xkm1(3,:).*cos(xkm1(4,:)); xkm1(2,:)+2*xkm1(3,:).*sin(xkm1(4,:)); xkm1(3,:)+ uk(:,3)'; xkm1(4,:) + uk(:,4)']; % CH model
+par.sys = @(k, xkm1, uk) [xkm1(1,:)+k*xkm1(3,:).*cos(xkm1(4,:)); xkm1(2,:)+k*xkm1(3,:).*sin(xkm1(4,:)); xkm1(3,:)+ uk(:,3)'; xkm1(4,:) + uk(:,4)']; % CH model
 par.gen_x0 = @(Np) [10*rand(Np,1),10*rand(Np,1), mvnrnd(zeros(Np,1), 2*sigma_v^2), 2*pi*rand(Np,1)]; % Uniform position and heading, Gaussian speed
 par.particles = par.gen_x0(par.Np)';                                        % Generate inital particles as per gen_x0
 par.w = repmat(1/par.Np, par.Np, 1)';                                       % Uniform weights
@@ -138,7 +138,13 @@ for i = 1:N
     
     % Change JPDAF parameters
     jpdaf.config.DataList = DataList_k; % New observations
-    
+    for t = 1:length(jpdaf.config.TrackList)
+        if(i==1)
+            jpdaf.config.TrackList{t}.TrackObj.pf.k = i;
+        else
+            jpdaf.config.TrackList{t}.TrackObj.pf.k = Dt(i-1);
+        end
+    end
     % 1) Predict the confirmed tracks
     try
         jpdaf.Predict();
@@ -149,7 +155,7 @@ for i = 1:N
     jpdaf.Update();
     
     % 3) Perform Track Management (Score-based)
-    [jpdaf, jpdaf_init] = Track_InitConfDel(jpdaf, jpdaf_init);
+    [jpdaf, jpdaf_init] = Track_InitConfDelRadar(jpdaf, jpdaf_init);
     
     TrackNum = size(jpdaf.config.TrackList,2);
     
@@ -189,11 +195,6 @@ for i = 1:N
             h2 = plot(ax(1), DataList{i}(1,:),DataList{i}(2,:),'k*','MarkerSize', 10);
             for j=1:TrackNum
                 colour = 'b';
-                if(j==2)
-                   colour = 'c';
-                elseif (j==3)
-                   colour = 'm';
-                end
                 h4 = plot(ax(1), jpdaf.config.TrackList{j}.TrackObj.pf.xhk(1,:),jpdaf.config.TrackList{j}.TrackObj.pf.xhk(2,:),strcat(colour,'.-'),'LineWidth',1);
                 %h4 = plot(Logs{j}.xV_ekf(1,i),Logs{j}.xV_ekf(2,i),strcat(colour,'o'),'MarkerSize', 10);
                 c_mean = mean(jpdaf.config.TrackList{j}.TrackObj.pf.particles,2);
@@ -204,6 +205,8 @@ for i = 1:N
                 %plot(jpdaf.config.TrackList{j}.TrackObj.pf.particles(1,:),jpdaf.config.TrackList{j}.TrackObj.pf.particles(2,:),strcat(colour,'.'),'MarkerSize', 3);
                 set(get(get(h4,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
                 text(c_mean(1)+20,c_mean(2)-10,int2str(j));
+                text(ax(1),c_mean(1)+20,c_mean(2)-10,int2str(j));
+                text(ax(1),c_mean(1)+20,c_mean(2)-80,num2str(jpdaf.config.TrackList{j}.TrackObj.pf.LPR, 2));
             end
             
             for j=1:jpdaf_init.config.TrackNum
@@ -217,6 +220,8 @@ for i = 1:N
                 set(h2,'LineWidth',1);
                 %plot(jpdaf.config.TrackList{j}.TrackObj.pf.particles(1,:),jpdaf.config.TrackList{j}.TrackObj.pf.particles(2,:),strcat(colour,'.'),'MarkerSize', 3);
                 set(get(get(h4,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
+                text(ax(1),c_mean(1)+20,c_mean(2)-10,int2str(j));
+                text(ax(1),c_mean(1)+20,c_mean(2)-80,num2str(jpdaf_init.config.TrackList{j}.TrackObj.pf.LPR, 2));
             end
                 % set the y-axis back to normal.
             set(ax(1),'ydir','normal');

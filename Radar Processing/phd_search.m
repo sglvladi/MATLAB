@@ -1,18 +1,27 @@
 %% Plot settings
 ShowPlots = 1;
-SkipFrames = 1;
+ShowPredict = 0;
+ShowData = 1;
+SkipFrames = 0;
+
+%% Recording Settings
+Record = 1;
+clear F
+clear M
 
 %% Initiate PF parameters
 nx = 4;      % number of state dims
 nu = 4;      % size of the vector of process noise
 nv = 2;      % size of the vector of observation noise
-q  = 0.1;   % process noise density (std)
-r  = 3;    % observation noise density (std)
-lambdaV = 0.05; % mean number of clutter points 
+q  = 0.001;   % process noise density (std)
+r  = 0.01;    % observation noise density (std)
+lambdaV = 10; % mean number of clutter points 
+V_bounds = [-2 -.800 2 3]; %[-2.5 .2 -3 3]; [-2 -.800 2 3] [-.700 -.400 -.700 .400]; % [x_min x_max y_min y_max]
+V = (abs(V_bounds(2)-V_bounds(1))*abs(V_bounds(4)-V_bounds(3)));
 % Prior PDF generator
 gen_x0_cch = @(Np) mvnrnd(repmat([0,0,0,0],Np,1),diag([q^2, q^2, 100, 100]));
 % Process equation x[k] = sys(k, x[k-1], u[k]);
-sys_cch = @(k, xkm1, uk) [xkm1(1,:)+k*xkm1(3,:).*cos(xkm1(4,:)); xkm1(2,:)+k*xkm1(3,:).*sin(xkm1(4,:)); xkm1(3,:)+ uk(:,3)'; xkm1(4,:) + uk(:,4)'];
+sys_cch = @(k, xkm1, uk) [xkm1(1,:)+k*xkm1(3,:).*cos(xkm1(4,:)); xkm1(2,:)+k*xkm1(3,:).*sin(xkm1(4,:)); xkm1(3,:)+ k*uk(:,3)'; xkm1(4,:) + k*uk(:,4)'];
 % PDF of process noise generator function
 gen_sys_noise_cch = @(u) mvnrnd(zeros(size(u,2), nu), diag([0,0,q^2,0.16^2])); 
 % Observation equation y[k] = obs(k, x[k], v[k]);
@@ -27,8 +36,8 @@ gen_obs_noise = @(v) mvnrnd(zeros(1, nv), cov_v);         % sample from p_obs_no
 p_yk_given_xk = @(k, yk, xk) p_obs_noise((yk - obs(k, xk, zeros(1, nv)))');
 % Assign PF parameter values
 pf.k               = 1;                   % initial iteration number
-pf.Np              = 5000;                 % number of particles
-pf.particles       = zeros(5, pf.Np); % particles
+pf.Np              = 10000;                 % number of particles
+pf.particles       = zeros(4, pf.Np); % particles
 pf.resampling_strategy = 'systematic_resampling';
 pf.sys = sys_cch;
 pf.particles = zeros(nx, pf.Np); % particles
@@ -39,6 +48,7 @@ pf.R = cov_v;
 pf.clutter_flag = 1;
 pf.multi_flag = 1;
 pf.sys_noise = gen_sys_noise_cch;
+pf.V_k = 0;
 
 %% Set TrackNum
 TrackNum = 0;
@@ -53,10 +63,13 @@ TrueTracks = 3;
 % end
 
 %% Initiate TrackList
-% for i=1:TrackNum,
-%     pf.gen_x0 = @(Np) mvnrnd(repmat([GroundTruth{i}(1,1),GroundTruth{i}(1,2),0,0],Np,1),diag([q^2, q^2, 1, 1]));
-%     pf.ExistProb = 0.8;
-%     TrackList{i}.TrackObj = ParticleFilterMin2(pf);
+% % for i=1:TrackNum,
+%      pf.gen_x0 = @(Np) [mvnrnd(repmat([-538.400000000000,-144],Np,1),cov_v), 5^2*rand(Np,1), 2*pi*rand(Np,1)];
+%      pf.ExistProb = 0.8;
+%      TrackList{1}.TrackObj = ParticleFilterMin2(pf);
+%      pf.gen_x0 = @(Np) [mvnrnd(repmat([-558.400000000000, 97.4000000000000],Np,1),cov_v), 5^2*rand(Np,1), 2*pi*rand(Np,1)];
+%      pf.ExistProb = 0.8;
+%      TrackList{2}.TrackObj = ParticleFilterMin2(pf);
 % end;
 
 %% Initiate PDAF parameters
@@ -65,8 +78,8 @@ Par.Filter = ParticleFilterMin2(pf);
 Par.DataList = DataList{1}(:,:);
 %Par.GroundTruth = GroundTruth;
 Par.TrackList = [];
-Par.PD = 0.8;
-Par.PG = 0.998;
+Par.PD = 0.6;
+Par.PG = 0.918;
 Par.GateLevel = 5;
 Par.Pbirth = 0.001;
 Par.Pdeath = 0.05;
@@ -74,13 +87,14 @@ Par.SimIter = 1000;
 
 %% Assign PHD parameter values
 par.k               = 1;                                                    % initial iteration number
-par.Np              = 10000;                                                % number of particles
+par.Np              = 50000;                                                % number of particles
 par.resampling_strategy = 'systematic_resampling';                          % resampling strategy
-par.birth_strategy = 'obs_oriented';                                           %  
-par.sys = @(k, xkm1, uk) [xkm1(1,:)+k*xkm1(3,:).*cos(xkm1(4,:)); xkm1(2,:)+k*xkm1(3,:).*sin(xkm1(4,:)); xkm1(3,:)+ uk(:,3)'; xkm1(4,:) + uk(:,4)']; % CH model
-par.gen_x0 = @(Np)[(2000+200)*rand(Np,1)-2000,6000*rand(Np,1)-3000, mvnrnd(zeros(Np,1), 100^2), 2*pi*rand(Np,1)]; % Uniform position and heading, Gaussian speed
+par.birth_strategy = 'mixture';                                           %  
+par.sys = @(k, xkm1, uk) [xkm1(1,:)+k*xkm1(3,:).*cos(xkm1(4,:)); xkm1(2,:)+k*xkm1(3,:).*sin(xkm1(4,:)); xkm1(3,:)+ k*uk(:,3)'; xkm1(4,:) + k*uk(:,4)']; % CH model
+%par.gen_x0 = @(Np)[(2000+200)*rand(Np,1)-2000,6000*rand(Np,1)-3000, mvnrnd(zeros(Np,1), 2^2), 2*pi*rand(Np,1)]; % Uniform position and heading, Gaussian speed
+par.gen_x0 = @(Np)[abs(V_bounds(2)-V_bounds(1))*rand(Np,1)+V_bounds(1),abs(V_bounds(4)-V_bounds(3))*rand(Np,1)+V_bounds(3), 0.01^2*rand(Np,1), 2*pi*rand(Np,1)]; % Uniform position and heading, Gaussian speed
 par.particles = par.gen_x0(par.Np)';                                        % Generate inital particles as per gen_x0
-par.gen_x0 = @(obs_mean, Np) [mvnrnd(repmat(obs_mean,1,Np)', cov_v), mvnrnd(zeros(Np,1), 10^2), 2*pi*rand(Np,1)];
+par.gen_x1 = @(obs_mean, Np) [mvnrnd(repmat(obs_mean,1,Np)', cov_v), mvnrnd(zeros(Np,1), 0.06^2), 2*pi*rand(Np,1)];
 %par.particles = par.gen_x0([0;0], par.Np)'; % Generate inital particles as per gen_x0
 par.w = repmat(1/par.Np, par.Np, 1)';                                       % Uniform weights
 par.likelihood = @(k, yk, xk) mvnpdf(yk, xk, cov_v);                        % Likelihood model p(y|x)
@@ -88,17 +102,19 @@ par.obs_model = @(xk) [xk(1,:); xk(2,:)];                                   % Ob
 par.sys_noise = gen_sys_noise_cch;                                          % System noise
 par.Pbirth = 0.1;                                                           % Birth probability
 par.Pdeath = 0.005;                                                         % Death probability
-par.J_k = 500;                                                             % Number of birth particles (births by "expansion")
-par.PD = 0.8;                                                               % Probability of detection
-par.lambda = lambdaV/(10^2);                                                % Mean clutter per unit area
+par.J_k = 1000;                                                             % Number of birth particles (births by "expansion")
+par.PD = 0.6;                                                               % Probability of detection
+par.lambda = lambdaV/V;                                                % Mean clutter per unit area
 par.Np_conf = pf.Np;                                                        % Number of particles for confirmed tracks
-par.P_conf = 0.9;                                                           % Confirmation probability
+par.P_conf = 0.95;                                                           % Confirmation probability
 par.type = 'search';                                                        % Search PHD filter
+par.R = cov_v;
 
 myphd = SMC_PHD(par);
 
 %% Instantiate JPDAF
 jpdaf = JPDAF(Par);
+% jpdaf.config.TrackList = TrackList;
 
 %% Instantiate Log to store output
 N=size(DataList,2);
@@ -141,6 +157,7 @@ for i = 1:N
     jpdaf.config.DataList = DataList_k; % New observations
     
     % Change PHD filter parameters
+    myphd.config.lambda = size(DataList_k,2)/V;
     myphd.config.k = i; % Time index
     myphd.config.z = DataList_k; % New observations
     
@@ -157,76 +174,63 @@ for i = 1:N
     
     % 1) Predict the confirmed tracks
     jpdaf.Predict();
+        
     % 2) Predict the PHD filter
     myphd.Predict();
-    % Plot PHD
-    cla(ax(2), 'reset');
-    [bandwidth,density,X,Y]=kde2d(myphd.config.particles(1:2,:)');
-    %contour3(X,Y,density,50);
-    surf(ax(2),X,Y,density);
-    hold on;
-    plot(ax(2), myphd.config.particles(1,:), myphd.config.particles(2,:), '.')
-    hold on;
-    plot(ax(2), myphd.config.z(1,:), myphd.config.z(2,:), 'y*');
-    axis(ax(2), [-2000 200 -3000 3000]);
-    str = sprintf('Visualisation of PHD search track density');
-    xlabel(ax(2),'X position (m)')
-    ylabel(ax(2),'Y position (m)')
-    zlabel(ax(2),'Intensity')
-    title(ax(2),str)
-    pause(0.01)
-    % 3) Update the confirmed track
-    jpdaf.Update();
-    % Plot data
-            cla(ax(1));
-             % Flip the image upside down before showing it
-            %imagesc(ax(1),[min_x max_x], [min_y max_y], flipud(img));
-
-            % NOTE: if your image is RGB, you should use flipdim(img, 1) instead of flipud.
-
-            hold on;
-            rectangle(ax(1),'Position',[8.75 4 0.75 3.5])
-            rectangle(ax(1),'Position',[4 6 2 1])
-            rectangle(ax(1),'Position',[1 3 2 2])
-%             for j=1:TrueTracks
-%                 h2 = plot(ax(1), x_true(1:i,j),y_true(1:i,j),'b.-','LineWidth',1);
-%                 if j==2
-%                     set(get(get(h2,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
-%                 end
-%                 h2 = plot(ax(1), x_true(i,j),y_true(i,j),'bo','MarkerSize', 10);
-%                 set(get(get(h2,'Annotation'),'LegendInformation'),'IconDisplayStyle','off'); % Exclude line from legend
-%             end
+    if(ShowPlots&&ShowPredict)
+        cla(ax(1));
+        if(ShowData)
             h2 = plot(ax(1), DataList{i}(1,:),DataList{i}(2,:),'k*','MarkerSize', 10);
-            for j=1:TrackNum
-                colour = 'r';
-                if(j==2)
-                   colour = 'c';
-                elseif (j==3)
-                   colour = 'm';
-                end
-                h4 = plot(ax(1), jpdaf.config.TrackList{j}.TrackObj.pf.xhk(1,:),jpdaf.config.TrackList{j}.TrackObj.pf.xhk(2,:),strcat(colour,'.-'),'LineWidth',1);
-                %h4 = plot(Logs{j}.xV_ekf(1,i),Logs{j}.xV_ekf(2,i),strcat(colour,'o'),'MarkerSize', 10);
-                c_mean = mean(jpdaf.config.TrackList{j}.TrackObj.pf.particles,2);
-                c_cov = [std(jpdaf.config.TrackList{j}.TrackObj.pf.particles(1,:),jpdaf.config.TrackList{j}.TrackObj.pf.w')^2,0;0,std(jpdaf.config.TrackList{j}.TrackObj.pf.particles(2,:),jpdaf.config.TrackList{j}.TrackObj.pf.w')^2];
-                h2=plot_gaussian_ellipsoid(c_mean(1:2), c_cov, 1, [], ax(1));
-                set(h2,'color',colour);
-                set(h2,'LineWidth',1);
-                plot(ax(1),jpdaf.config.TrackList{j}.TrackObj.pf.particles(1,:),jpdaf.config.TrackList{j}.TrackObj.pf.particles(2,:),strcat(colour,'.'),'MarkerSize', 3);
-                set(get(get(h4,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
-                text(ax(1),c_mean(1)+20,c_mean(2)-10,int2str(j));
-                text(ax(1),c_mean(1)+20,c_mean(2)-80,num2str(jpdaf.config.TrackList{j}.TrackObj.pf.ExistProb, 2));
+        end
+        for j=1:jpdaf.config.TrackNum
+            colour = 'r';
+            if(j==2)
+               colour = 'c';
+            elseif (j==3)
+               colour = 'm';
             end
-             h2 = plot(ax(1), DataList{i}(1,:),DataList{i}(2,:),'k*','MarkerSize', 10);
-                % set the y-axis back to normal.
-            %set(ax(1),'ydir','normal');
-            str = sprintf('Visualisation of tracking process');
-            title(ax(1),str)
-            xlabel('X position (m)')
-            ylabel('Y position (m)')
-%            h_legend = legend('Real', 'Meas', 'Target 1', 'Target 2');
-%            set(h_legend,'FontSize',9, 'Orientation', 'horizontal', 'Location', 'north');
-            axis(ax(1),[-2000 200 -3000 3000])
-    % 4) Compute rhi as given by Eq. (16) in [2] 
+            h4 = plot(ax(1), jpdaf.config.TrackList{j}.TrackObj.pf.xhk(1,:),jpdaf.config.TrackList{j}.TrackObj.pf.xhk(2,:),strcat(colour,'.-'),'LineWidth',1);
+            %h4 = plot(Logs{j}.xV_ekf(1,i),Logs{j}.xV_ekf(2,i),strcat(colour,'o'),'MarkerSize', 10);
+            c_mean = mean(jpdaf.config.TrackList{j}.TrackObj.pf.particles,2);
+            c_cov = [std(jpdaf.config.TrackList{j}.TrackObj.pf.particles(1,:),jpdaf.config.TrackList{j}.TrackObj.pf.w')^2,0;0,std(jpdaf.config.TrackList{j}.TrackObj.pf.particles(2,:),jpdaf.config.TrackList{j}.TrackObj.pf.w')^2];
+            h2=plot_gaussian_ellipsoid(c_mean(1:2), c_cov, 1, [], ax(1));
+            set(h2,'color',colour);
+            set(h2,'LineWidth',1);
+            %plot(ax(1),jpdaf.config.TrackList{j}.TrackObj.pf.particles(1,:),jpdaf.config.TrackList{j}.TrackObj.pf.particles(2,:),strcat(colour,'.'),'MarkerSize', 3);
+            set(get(get(h4,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
+            text(ax(1),c_mean(1)+.020,c_mean(2)-.05,int2str(j));
+            text(ax(1),c_mean(1)+.020,c_mean(2)-.15,num2str(jpdaf.config.TrackList{j}.TrackObj.pf.ExistProb, 2));
+        end
+            % set the y-axis back to normal.
+        %set(ax(1),'ydir','normal');
+        str = sprintf('Visualisation of tracking process');
+        title(ax(1),str)
+        xlabel('X position (m)')
+        ylabel('Y position (m)')
+    %            h_legend = legend('Real', 'Meas', 'Target 1', 'Target 2');
+    %            set(h_legend,'FontSize',9, 'Orientation', 'horizontal', 'Location', 'north');
+        axis(ax(1),V_bounds)
+        %pause(0.1)
+    
+        % Plot PHD
+        cla(ax(2), 'reset');
+        [bandwidth,density,X,Y]=kde2d(myphd.config.particles(1:2,:)');
+        %contour3(X,Y,density,50);
+        surf(ax(2),X,Y,density);
+        hold on;
+        plot(ax(2), myphd.config.particles(1,:), myphd.config.particles(2,:), '.')
+        hold on;
+        plot(ax(2), myphd.config.z(1,:), myphd.config.z(2,:), 'y*');
+        axis(ax(2), V_bounds);
+        str = sprintf('Visualisation of PHD search track density');
+        xlabel(ax(2),'X position (m)')
+        ylabel(ax(2),'Y position (m)')
+        zlabel(ax(2),'Intensity')
+        title(ax(2),str)
+        %pause(0.01)
+    end
+    
+    % 3) Compute rhi as given by Eq. (16) in [2] 
     rhi = zeros(1, size(DataList_k,2));
     for m = 1:size(DataList_k,2)
         rhi_tmp = 1;
@@ -238,8 +242,13 @@ for i = 1:N
         rhi(m) = rhi_tmp;
     end
     myphd.config.rhi = rhi;
+    
+    % 4) Update the confirmed track
+    jpdaf.Update();
+    
     % 5) Update PHD filter
     myphd.Update();
+    
     % 6) Initiate tracks
     for j = 1:length(myphd.config.NewTracks)
         pf.particles = myphd.config.NewTracks{j}.particles;
@@ -252,7 +261,7 @@ for i = 1:N
      del_tracks = 0;
      del_flag = 0;
     for t = 1:length(jpdaf.config.TrackList)
-        if(jpdaf.config.TrackList{t}.TrackObj.pf.ExistProb<0.1)
+        if(jpdaf.config.TrackList{t}.TrackObj.pf.ExistProb<0.1 || jpdaf.config.TrackList{t}.TrackObj.pf.V_k > 60000)
             jpdaf.config.TrackList{t} = [];
             del_tracks = del_tracks + 1;
             del_flag = 1;
@@ -308,7 +317,7 @@ for i = 1:N
 %     end
     
     %store Logs
-    for j=1:TrackNum
+    for j=1:jpdaf.config.TrackNum
         try
             Logs{j}.xV_ekf(:,end+1) = jpdaf.config.TrackList{j}.TrackObj.pf.xhk;
         catch
@@ -341,27 +350,29 @@ for i = 1:N
 %                 h2 = plot(ax(1), x_true(i,j),y_true(i,j),'bo','MarkerSize', 10);
 %                 set(get(get(h2,'Annotation'),'LegendInformation'),'IconDisplayStyle','off'); % Exclude line from legend
 %             end
-            h2 = plot(ax(1), DataList{i}(1,:),DataList{i}(2,:),'k*','MarkerSize', 10);
+            if(ShowData)
+                data = plot(ax(1), DataList{i}(1,:),DataList{i}(2,:),'g*','MarkerSize', 5);
+            end
             for j=1:TrackNum
                 colour = 'r';
-                if(j==2)
-                   colour = 'c';
-                elseif (j==3)
-                   colour = 'm';
-                end
+%                 if(j==2)
+%                    colour = 'c';
+%                 elseif (j==3)
+%                    colour = 'm';
+%                 end
                 h4 = plot(ax(1), jpdaf.config.TrackList{j}.TrackObj.pf.xhk(1,:),jpdaf.config.TrackList{j}.TrackObj.pf.xhk(2,:),strcat(colour,'.-'),'LineWidth',1);
                 %h4 = plot(Logs{j}.xV_ekf(1,i),Logs{j}.xV_ekf(2,i),strcat(colour,'o'),'MarkerSize', 10);
                 c_mean = mean(jpdaf.config.TrackList{j}.TrackObj.pf.particles,2);
                 c_cov = [std(jpdaf.config.TrackList{j}.TrackObj.pf.particles(1,:),jpdaf.config.TrackList{j}.TrackObj.pf.w')^2,0;0,std(jpdaf.config.TrackList{j}.TrackObj.pf.particles(2,:),jpdaf.config.TrackList{j}.TrackObj.pf.w')^2];
                 h2=plot_gaussian_ellipsoid(c_mean(1:2), c_cov, 1, [], ax(1));
+                quiver(ax(1), c_mean(1),c_mean(2),30*c_mean(3)*cos(c_mean(4)),30*c_mean(3)*sin(c_mean(4)), 'Color', 'b', 'Linewidth', 1, 'ShowArrowHead','off', 'MaxHeadSize', 1)
                 set(h2,'color',colour);
                 set(h2,'LineWidth',1);
-                plot(ax(1),jpdaf.config.TrackList{j}.TrackObj.pf.particles(1,:),jpdaf.config.TrackList{j}.TrackObj.pf.particles(2,:),strcat(colour,'.'),'MarkerSize', 3);
+                %plot(ax(1),jpdaf.config.TrackList{j}.TrackObj.pf.particles(1,:),jpdaf.config.TrackList{j}.TrackObj.pf.particles(2,:),strcat(colour,'.'),'MarkerSize', 3);
                 set(get(get(h4,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
-                text(ax(1),c_mean(1)+20,c_mean(2)-10,int2str(j));
-                text(ax(1),c_mean(1)+20,c_mean(2)-80,num2str(jpdaf.config.TrackList{j}.TrackObj.pf.ExistProb, 2));
+                text(ax(1),c_mean(1)+.0020,c_mean(2)-.005,int2str(j));
+                text(ax(1),c_mean(1)+.0020,c_mean(2)-.015,num2str(jpdaf.config.TrackList{j}.TrackObj.pf.ExistProb, 2));
             end
-             h2 = plot(ax(1), DataList{i}(1,:),DataList{i}(2,:),'k*','MarkerSize', 10);
                 % set the y-axis back to normal.
             %set(ax(1),'ydir','normal');
             str = sprintf('Visualisation of tracking process');
@@ -370,8 +381,12 @@ for i = 1:N
             ylabel('Y position (m)')
 %            h_legend = legend('Real', 'Meas', 'Target 1', 'Target 2');
 %            set(h_legend,'FontSize',9, 'Orientation', 'horizontal', 'Location', 'north');
-            axis(ax(1),[-2000 200 -3000 3000])
+            axis(ax(1),V_bounds)
             %pause(0.01)
+            if(Record)
+                
+                F(i) = getframe(ax(1));
+            end
             
             % Plot PHD
             cla(ax(2), 'reset');
@@ -382,16 +397,26 @@ for i = 1:N
             plot(ax(2), myphd.config.particles(1,:), myphd.config.particles(2,:), '.')
             hold on;
             plot(ax(2), myphd.config.z(1,:), myphd.config.z(2,:), 'y*');
-            axis(ax(2), [-2000 200 -3000 3000]);
+            axis(ax(2),V_bounds);
             str = sprintf('Visualisation of PHD search track density');
             xlabel(ax(2),'X position (m)')
             ylabel(ax(2),'Y position (m)')
             zlabel(ax(2),'Intensity')
             title(ax(2),str)
-            pause(0.01)
+            %pause(0.01)
+            
+            
         end
     end
 end
+
+F = F(2:end);
+vidObj = VideoWriter(sprintf('phd_search.avi'));
+vidObj.Quality = 100;
+vidObj.FrameRate = 10;
+open(vidObj);
+writeVideo(vidObj, F);
+close(vidObj);
 
 % % Plot surveillance region
 % figure('units','centimeters','position',[.1 .1 30 20])

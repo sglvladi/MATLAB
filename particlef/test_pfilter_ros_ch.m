@@ -2,7 +2,7 @@
 
 %% Process equation x[k] = sys(k, x[k-1], u[k]);
 nx = 5;  % number of states
-sys = @(k, xkm1, uk) [xkm1(1)+1*xkm1(3)*cos(xkm1(4)); xkm1(2)+1*xkm1(3)*sin(xkm1(4)); xkm1(3)+ normrnd(0,0.1); xkm1(4) + xkm1(5); xkm1(5) + normrnd(0, 0.05)]; % (returns column vector)
+sys = @(k, xkm1, uk) [xkm1(1)+k*xkm1(3)*cos(xkm1(4)); xkm1(2)+k*xkm1(3)*sin(xkm1(4)); xkm1(3) + uk(3); xkm1(4) + uk(4)]; % (returns column vector)
 
 %% Observation equation y[k] = obs(k, x[k], v[k]);
 ny = 2;                                           % number of observations
@@ -80,7 +80,7 @@ for k = 2:T
    clf;
    fprintf('Iteration = %d/%d\n',k,T);
    % state estimation
-   my_pf.pf.k = k;
+   my_pf.pf.k = Dt;
    my_pf.pf.z = y(:,k);
    %[xh(:,k), pf] = particle_filter(sys, y(:,k), pf, 'multinomial_resampling');
    %[xh(:,k), pf] = particle_filter(sys, y(:,k), pf, 'systematic_resampling');   

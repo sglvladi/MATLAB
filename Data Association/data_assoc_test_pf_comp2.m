@@ -1,5 +1,5 @@
-r_list = [0.1:0.1:1];
-lambda_list = repmat(50, 1, 10);
+r_list = [1];
+lambda_list = 1;
 Sim_No = 10;
 clear F
 PV_err = [];
