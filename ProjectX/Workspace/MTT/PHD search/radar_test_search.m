@@ -11,7 +11,7 @@ clear M
 
 %% Clutter settings
 lambdaV = 10; % mean number of clutter points 
-V_bounds = [-1500 500 -1000 500]; %[-700 -400 -700 400]; %[-2500 200 -3000 3000]; %[-2.5 .2 -3 3]; [-2 -.800 2 3] [-.700 -.400 -.700 .400]; % [x_min x_max y_min y_max]
+V_bounds = [-2500 200 -3000 3000];%[-1500 500 -1000 500]; %[-700 -400 -700 400]; %[-2500 200 -3000 3000]; %[-2.5 .2 -3 3]; [-2 -.800 2 3] [-.700 -.400 -.700 .400]; % [x_min x_max y_min y_max]
 V = (abs(V_bounds(2)-V_bounds(1))*abs(V_bounds(4)-V_bounds(3)));
 
 %% Constant Velocity model
@@ -32,7 +32,7 @@ POmodel = PositionalObsModelX(Params_po);
 
 %% Assign PF parameter values
 Params_pf.k               = 1;                   % initial iteration number
-Params_pf.Np              = 1000;                 % number of particles
+Params_pf.Np              = 5000;                 % number of particles
 Params_pf.resampling_strategy = 'systematic_resampling';
 Params_pf.DynModel = CHmodel;
 Params_pf.ObsModel = POmodel;

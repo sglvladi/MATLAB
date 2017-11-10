@@ -118,6 +118,10 @@ classdef PositionalObsModelX < ObservationModelX
         %   See also OBS_COV, OBS_NOISE, SAMPLE, EVAL.
             
             switch(nargin)
+                case 1
+                    k = 1;
+                    xk = 1;
+                    vk = 0;
                 case 2
                     xk = 1;
                     vk = 0;
@@ -126,7 +130,7 @@ classdef PositionalObsModelX < ObservationModelX
             end
             
             % Compute predicted measurement
-            yk = this.Params.H()*xk + vk ;           
+            yk = this.Params.H(k)*xk + vk ;           
         end
         
         function Rk = obs_cov(this, k)

@@ -22,7 +22,7 @@ classdef GenericObservationModelX < ObservationModelX
     end
     
     methods
-        function this = GenericObservationModelX(varargin)
+        function this = GenericObservationModelX(Init)
         % PositionalObsModelX - Constructor method
         %   
         %   Inputs:
@@ -45,48 +45,17 @@ classdef GenericObservationModelX < ObservationModelX
         %   See also obs, obs_cov, obs_noise, eval.   
             
             % Define input parser
-            p = inputParser;
-            
-            % Add x_Dim as a parameter
-            default_xDim = 4;
-            validate_xDim = @(x) isnumeric(x)&&isscalar(x);
-            addOptional(p, 'xDim', default_xDim, validate_xDim);
-            
-            % Add y_Dim as a parameter
-            default_yDim = 2;
-            validate_yDim = @(x) isnumeric(x)&&isscalar(x);
-            addOptional(p, 'yDim', default_yDim, validate_yDim);
-            
-            % Add r as a parameter
-            default_r = [];
-            validate_r = @(x) isnumeric(x)&&isscalar(x);
-            addOptional(p, 'r', default_r, validate_r);
-            
-            % Add smartArgs as a parameter
-            default_sa = [];
-            validate_sa = @(x) islogical(x);
-            addOptional(p, 'smartArgs', default_sa, validate_sa)
-            
-            parse(p, varargin{:});
             
             % Add .xDim
-            Params.xDim = p.Results.xDim;
-            Params.yDim = p.Results.yDim;
+            Params.xDim = Init.xDim;
+            Params.yDim = Init.yDim;
             
             % Validate .r
-            if ~isempty(p.Results.r)
-                Params.r = p.Results.r;
+            if isfield(Init,'r')
+                Params.r = Init.r;
             else
                 Params.r = 0.1;
                 fprintf('[CVModel] Process noise diffusion coefficient missing... Applying default setting "Params.r = 0.1"..\n');
-            end
-            
-            % Validate .smartArgs
-            if ~isempty(p.Results.smartArgs)
-                Params.smartArgs = p.Results.smartArgs;
-            else
-                Params.smartArgs = true;
-                warning('[POModel] Smart (name,value) arguments are turned ON by default! Disable to improve speed.');
             end
             
             % Define .h
@@ -97,12 +66,6 @@ classdef GenericObservationModelX < ObservationModelX
                     Params.h = @(~) [[0.5 0; 0 0.5],zeros(2,Params.xDim-Params.yDim)]; 
                 case(3)
                     Params.h = @(~) [[1 0 0; 0 1 0; 0 0 1], zeros(3,Params.xDim-Params.yDim)]; 
-            end
-            
-            % Validate .r
-            if ~isfield(Params,'r')
-                Params.r = 0.1;
-                fprintf('[POModel] Observation noise standard deviation missing... Applying default setting "r = 0.1"..\n');
             end
             
             % Define .R
@@ -121,7 +84,7 @@ classdef GenericObservationModelX < ObservationModelX
       
         end
         
-        function yk = obs(this, varargin)
+        function yk = obs(this,k,xk,vk)
         % obs - State-space to measurement-space state projection function h(k,xk,vk)
         %
         %   Inputs:
@@ -145,55 +108,21 @@ classdef GenericObservationModelX < ObservationModelX
         %     - yk = ObsModel.obs(k,xk,ObsModel.obs_noise(k,size(xk,2)));
         %
         %   See also obs_cov, obs_noise, sample, eval_likelihood.
-            
-            if(this.Params.smartArgs)
-                % Define input parser
-                p = inputParser;
-
-                % Define dafault values to suit your needs
-                default_k = 0;
-                default_xk = 0;
-                default_vk = 0;
-
-                % Add k as an optional parameter
-                validate_k = @(x) true; % Don't care
-                addOptional(p, 'k', default_k, validate_k);
-                % Add xk as an optional parameter
-                validate_xk = @(x) (isempty(x) || (isnumeric(x)&&(size(x,1) == this.Params.xDim)));
-                addOptional(p, 'xk', default_xk, validate_xk);
-                % Add vk as an optional parameter
-                validate_vk = @(x) (isempty(x) || (isnumeric(x)&&(size(x,1) == this.Params.xDim)));
-                addOptional(p, 'vk', default_vk, validate_vk);
-                parse(p,varargin{:});
-                k  = p.Results.k;
-                xk = p.Results.xk;
-                vk = p.Results.vk;
-            else
-                switch(length(varargin))
-                    case 0
-                        k  = 0;
-                        xk = 1;
-                        vk = 0;
-                    case 1
-                        k  = varargin{1};
-                        xk = 1;
-                        vk = 0;
-                    case 2
-                        k  = varargin{1};
-                        xk = varargin{2};
-                        vk = 0;
-                    case 3
-                        k  = varargin{1};
-                        xk = varargin{2};
-                        vk = varargin{3};
-                    otherwise
-                        error('Invalid number of arguments passed!');
-                end
+            switch(nargin)
+                case 1
+                    k  = 0;
+                    xk = 1;
+                    vk = 0;
+                case 2
+                    xk = 1;
+                    vk = 0;
+                case 3
+                    vk = 0;
             end
             yk = this.Params.h()*xk + vk ;           
         end
         
-        function Rk = obs_cov(this, varargin)
+        function Rk = obs_cov(this,k)
         % obs_cov - Returns measurement covariance Rk. Only applies to Gaussian models.
         %           REQUIRED for your model to work with KalmanFilterX, EKalmanFilterX, UKalmanFilterX and all other Gaussian filters.
         %           Currently ProjectX filters do not support state-dependent measurement covariances. Extensions to state dependent covariance should be possible.
@@ -216,7 +145,7 @@ classdef GenericObservationModelX < ObservationModelX
             Rk = this.Params.R();    % Time invariant
         end
         
-        function vk = obs_noise(this, varargin)
+        function vk = obs_noise(this,k,Ns)
         % obs_noise - Process noise sample generator 
         %
         %   Inputs:
@@ -232,30 +161,12 @@ classdef GenericObservationModelX < ObservationModelX
         %   vk = ObsModel.obs_noise(k, Ns) % k can have any scalar numeric value, or be [] 
         %
         %   See also obs, obs_cov.
-            
-            if(this.Params.smartArgs)
-                % Define input parser
-                p = inputParser;
-
-                % Define default Ns
-                default_Ns = 1;
-
-                % Add k as a REQUIRED argument
-                validate_k = @(x) true; % Don't care
-                addOptional(p, 'k', validate_k);
-                validate_Ns = @(x) ((isscalar(x) && isnumeric(x) && x>0)); % Only valid if k is scallar and numeric
-                addOptional(p, 'Ns', default_Ns, validate_Ns);
-                parse(p, varargin{:});
-                Ns = p.Results.Ns;
-            else
-                Ns = varargin{2};
-            end
         
             % Generate noise samples
             vk = mvnrnd(zeros(this.Params.yDim,Ns)',this.Params.R())';
         end
         
-         function LikelihoodMatrix = eval(this, varargin)
+         function LikelihoodMatrix = eval(this,k,yk,xk)
         % eval - Evaluates the probability p(y_k|x_k) of a set of new states, given a set of (particle) state vectors  
         % 
         %   Inputs:
@@ -272,37 +183,16 @@ classdef GenericObservationModelX < ObservationModelX
         %
         %   See also obs, obs_cov, obs_noise, sample.
         
-            if(this.Params.smartArgs)
-                % Define input parser
-                p = inputParser;
-
-                % Add k as a required parameter
-                validate_k = @(x) true; % Don't care
-                addRequired(p, 'k', validate_k);
-                % Add xk as a required parameter
-                validate_yk = @(x) (isnumeric(x)&&(size(x,1) == this.Params.yDim));
-                addRequired(p, 'yk', validate_yk);
-                % Add yk as a required parameter
-                validate_xk = @(x) (isnumeric(x)&&(size(x,1) == this.Params.xDim));
-                addRequired(p, 'xk', validate_xk);
-                parse(p, varargin{:});
-                yk = p.Results.yk;
-                xk = p.Results.xk;
-            else
-                yk = varargin{2};
-                xk = varargin{3};
-            end
-        
             LikelihoodMatrix = zeros(size(yk,2), size(xk,2));
-            if(issymmetric(this.Params.R()) && size(xk,2)>size(yk,2))
+            if(size(xk,2)>size(yk,2))
                 % If R is symmetric and the number of state vectors is higher than the number of measurements,
                 %   then evaluate N(x_k; y_k, R) = N(y_k; x_k, R) to increase speed
                 for i=1:size(yk,2)
-                    LikelihoodMatrix(i,:) = mvnpdf(this.obs('xk',xk)',yk(:,i)', this.Params.R())';
+                    LikelihoodMatrix(i,:) = mvnpdf(yk(:,i)', this.obs(k,xk)', this.Params.R())';
                 end
             else
                 for i=1:size(xk,2)
-                    LikelihoodMatrix(:,i) = mvnpdf(yk', this.obs('xk',xk(:,i))', this.Params.R())';  
+                    LikelihoodMatrix(:,i) = mvnpdf(yk', this.obs(k,xk(:,i))', this.Params.R())';  
                 end
              end
                         

@@ -1,9 +1,9 @@
 % Plot settings
 ShowPlots = 1;
-ShowUpdate = 1;
+ShowUpdate = 0;
 ShowArena = 0;
 ShowPredict = 0;
-SimNum = 10;
+SimNum = 100;
 V_bounds = [0 15 0 10];
 
 % Instantiate a Tracklist to store each filter
@@ -41,34 +41,40 @@ if(ShowPlots)
     figure('units','normalized','outerposition',[0 0 .5 1])
     ax(1) = gca;
 end
-
-DynModel = GenericDynamicModelX('smartArgs',false);
-ObsModel = GenericObservationModelX('smartArgs',false);
+Params_dyn.xDim = 4;
+Params_dyn.q = 0.0001;
+DynModel = GenericDynamicModelX(Params_dyn);
+Params_obs.xDim = 4;
+Params_obs.yDim = 2;
+Params_obs.r = 0.1;
+ObsModel = PositionalObsModelX(Params_obs);%GenericObservationModelX(Params_obs);
 
 % Constant Velocity Model
-CVmodel = ConstantVelocityModelX(4,'q',0.0002,'smartArgs',false);
-% Positional Observation Model;
-obs_model = PositionalObsModelX('xDim',4,'yDim',2,'r',0.1,'smartArgs', false);
+DynModel = ConstantVelocityModelX(Params_dyn);
+% % Positional Observation Model;
+% obs_model = PositionalObsModelX('xDim',4,'yDim',2,'r',0.1,'smartArgs', false);
 
 % Generate ground truth and measurements
 for k = 1:N
     % Generate new measurement from ground truth
     sV(:,k) = [x_true(k+2,1); y_true(k+2,1)];     % save ground truth
-    zV(:,k) = obs_model.sample(0, sV(:,k),1);     % generate noisy measurment
+    zV(:,k) = ObsModel.sample(0, sV(:,k),1);     % generate noisy measurment
 end
 
 
 FilterList = cell(1,FilterNum);    
 % Initiate Kalman Filter
 Params_kf.k = 1;
-Params_kf.x = [x_true(2,1); y_true(2,1); x_true(2,1)-x_true(1,1); y_true(2,1)-y_true(1,1)];
-Params_kf.P = CVmodel.Params.Q(1);
+Params_kf.x_init = [x_true(2,1); y_true(2,1); x_true(2,1)-x_true(1,1); y_true(2,1)-y_true(1,1)];
+Params_kf.P_init = CVmodel.Params.Q(1);
+Params_kf.DynModel = DynModel;
+Params_kf.ObsModel = ObsModel;
 
 
+FilterList{1}.Filter = KalmanFilterX(Params_kf);
 
 for SimIter = 1:SimNum
     
-    FilterList{1}.Filter = KalmanFilterX(CVmodel, obs_model, 'x_init', Params_kf.x, 'P_init', Params_kf.P, 'k', 1);
 
     % FILTERING
     % ===================>
@@ -138,12 +144,14 @@ for SimIter = 1:SimNum
     end
     
     filtered_estimates = Logs{1}.filtered_estimates;
+    
     % SMOOTHING
     % ===================>
     smoothed_estimates = FilterList{i}.Filter.Smooth(filtered_estimates);
     
     for i=1:N
         xV_smooth(:,i) = smoothed_estimates{i}.x;          %estmate        % allocate memory
+        PV_smooth(:,:,i) = smoothed_estimates{i}.P;
     end
     if(ShowPlots)
         
@@ -167,6 +175,9 @@ for SimIter = 1:SimNum
         plot(Logs{1}.xV(1,1:k), Logs{1}.xV(2,1:k), 'r.-', 'MarkerSize', 10);
         plot(xV_smooth(1,k), xV_smooth(2,k), 'go', 'MarkerSize', 10);
         plot(xV_smooth(1,1:k), xV_smooth(2,1:k), 'g.-', 'MarkerSize', 10);
+        for ki = 1:k
+            plot_gaussian_ellipsoid(xV_smooth(1:2,ki), PV_smooth(1:2,1:2,ki), 1, [], ax(1));
+        end
         % set the y-axis back to normal.
         set(ax(1),'ydir','normal');
         str = sprintf('Robot positions (Update)');
@@ -177,21 +188,24 @@ for SimIter = 1:SimNum
         pause(0.01);
     end
     
-    smoothed_estimates{N}.Vt_tm1 = DynModel.sys()*filtered_estimates{N-1}.P - filtered_estimates{N}.K*ObsModel.obs()*DynModel.sys()*filtered_estimates{N-1}.P ;
+    % Vt_tm1 = F * Vf_tm1 - K_t * H * F * Vf_tm1;
+    smoothed_estimates{N}.Vt_tm1 = FilterList{1}.Filter.DynModel.sys()*filtered_estimates{N-1}.P - filtered_estimates{N}.K*FilterList{1}.Filter.ObsModel.obs()*FilterList{1}.Filter.DynModel.sys()*filtered_estimates{N-1}.P ;
+    % Pt_tm1 = Vt_tm1 + xs_t * xs_tm1';
     smoothed_estimates{N}.Pt_tm1 = smoothed_estimates{N}.Vt_tm1 + smoothed_estimates{N}.x*smoothed_estimates{N-1}.x';
+    % Ptm1_t = Vt_tm1' + xs_tm1 * xs_t';
     smoothed_estimates{N}.Ptm1_t = smoothed_estimates{N}.Vt_tm1' + smoothed_estimates{N-1}.x*smoothed_estimates{N}.x';
     
     % COMPUTE VARIANCES
     % ===================>
     F = smoothed_estimates{N}.Pt_tm1/(smoothed_estimates{N-1}.P + smoothed_estimates{N-1}.x*smoothed_estimates{N-1}.x');
     for k = N-1:-1:2
-        smoothed_estimates{k}.Vt_tm1 = filtered_estimates{k}.P*smoothed_estimates{k-1}.C' + smoothed_estimates{k}.C*(smoothed_estimates{k+1}.Vt_tm1 - DynModel.sys()*filtered_estimates{k}.P)*smoothed_estimates{k-1}.C';
+        smoothed_estimates{k}.Vt_tm1 = filtered_estimates{k}.P*smoothed_estimates{k-1}.C' + smoothed_estimates{k}.C*(smoothed_estimates{k+1}.Vt_tm1 - FilterList{1}.Filter.DynModel.sys()*filtered_estimates{k}.P)*smoothed_estimates{k-1}.C';
         smoothed_estimates{k}.Pt_tm1 = smoothed_estimates{k}.Vt_tm1 + smoothed_estimates{k}.x*smoothed_estimates{k-1}.x';
         smoothed_estimates{k}.Ptm1_t = smoothed_estimates{k}.Vt_tm1' + smoothed_estimates{k-1}.x*smoothed_estimates{k}.x';
         F = F + smoothed_estimates{k}.Pt_tm1/(smoothed_estimates{k-1}.P + smoothed_estimates{k-1}.x*smoothed_estimates{k-1}.x');
     end
-    
-    DynModel.Params.f = @(~)F;
+    F = F/N;
+    FilterList{1}.Filter.DynModel.Params.F = @(~)F;
     
 end
 

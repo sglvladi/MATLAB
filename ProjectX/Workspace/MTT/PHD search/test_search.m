@@ -1,5 +1,5 @@
 %% Plot settings
-ShowPlots = 0;
+ShowPlots = 1;
 ShowPredict = 0;
 ShowData = 1;
 SkipFrames = 0;
@@ -45,7 +45,7 @@ TrackNum = 3;
 TrueTracks = 3;
 
 %% Generate DataList                       (TrackNum, x_true, y_true, R, R_clutter, lambdaV, Iter)                   
-%[DataList,x1,y1] = gen_obs_cluttered_multi2(TrueTracks, x_true, y_true, POmodel.Params.r, 2, lambdaV, 1);
+[DataList,x1,y1] = gen_obs_cluttered_multi2(TrueTracks, x_true, y_true, POmodel.Params.r, 2, lambdaV, 1);
 % 
 % %% Get GroundTruth
 % for i=1:TrueTracks

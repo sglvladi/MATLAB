@@ -126,6 +126,10 @@ classdef ConstantVelocityModelX <  DynamicModelX % Handle class with copy functi
         % See also CONSTANTVELOCITYMODELX, SYS_COV, SYS_NOISE, EVAL.
         
             switch(nargin)
+                case 1 
+                    k = 1;
+                    xkm1 = 1;
+                    wk   = 0;
                 case 2
                     xkm1 = 1;
                     wk   = 0;
