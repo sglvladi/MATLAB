@@ -415,7 +415,7 @@ classdef SMC_PHD < handle
             trans_particles = config.obs_model(config.particles(:,:)); 
             
             % Get rhi measurement weights (computed externally as in Eq. (16) in [2])
-            config.rhi = config.rhi==1; %ones(1,size(config.z,2)); % Assume all measurements are unused
+            %config.rhi = config.rhi==1; %ones(1,size(config.z,2)); % Assume all measurements are unused
             
             % Perform particle gating
             % =========================================================>
@@ -482,6 +482,8 @@ classdef SMC_PHD < handle
             
             % Select measurements which are not to be used for new tracks
             NonCritMeasurements = setdiff([1:size(config.z, 2)], CritMeasurements);
+            
+            w(w(CritMeasurements,:)>0) = 0;
             
             % Rescale new particle weights, considering only non critical measurements
             config.w = sum(w([1,NonCritMeasurements+1],:),1);

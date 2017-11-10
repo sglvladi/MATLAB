@@ -13,10 +13,10 @@ clear M
 nx = 4;      % number of state dims
 nu = 4;      % size of the vector of process noise
 nv = 2;      % size of the vector of observation noise
-q  = 0.001;   % process noise density (std)
-r  = 0.01;    % observation noise density (std)
+q  = 1;   % process noise density (std)
+r  = 20;    % observation noise density (std)
 lambdaV = 10; % mean number of clutter points 
-V_bounds = [-2 -.800 2 3]; %[-2.5 .2 -3 3]; [-2 -.800 2 3] [-.700 -.400 -.700 .400]; % [x_min x_max y_min y_max]
+V_bounds = [-2000 -800 2000 3000]; %[-2.5 .2 -3 3]; [-2 -.800 2 3] [-.700 -.400 -.700 .400]; % [x_min x_max y_min y_max]
 V = (abs(V_bounds(2)-V_bounds(1))*abs(V_bounds(4)-V_bounds(3)));
 % Prior PDF generator
 gen_x0_cch = @(Np) mvnrnd(repmat([0,0,0,0],Np,1),diag([q^2, q^2, 100, 100]));
@@ -78,35 +78,35 @@ Par.Filter = ParticleFilterMin2(pf);
 Par.DataList = DataList{1}(:,:);
 %Par.GroundTruth = GroundTruth;
 Par.TrackList = [];
-Par.PD = 0.6;
-Par.PG = 0.918;
-Par.GateLevel = 5;
-Par.Pbirth = 0.001;
-Par.Pdeath = 0.05;
+Par.PD = 0.5;
+Par.PG = 0.998;
+Par.GateLevel = 15;
+Par.Pbirth = 0.01;
+Par.Pdeath = 0.005;
 Par.SimIter = 1000;
 
 %% Assign PHD parameter values
 par.k               = 1;                                                    % initial iteration number
-par.Np              = 50000;                                                % number of particles
+par.Np              = 100000;                                                % number of particles
 par.resampling_strategy = 'systematic_resampling';                          % resampling strategy
 par.birth_strategy = 'mixture';                                           %  
 par.sys = @(k, xkm1, uk) [xkm1(1,:)+k*xkm1(3,:).*cos(xkm1(4,:)); xkm1(2,:)+k*xkm1(3,:).*sin(xkm1(4,:)); xkm1(3,:)+ k*uk(:,3)'; xkm1(4,:) + k*uk(:,4)']; % CH model
 %par.gen_x0 = @(Np)[(2000+200)*rand(Np,1)-2000,6000*rand(Np,1)-3000, mvnrnd(zeros(Np,1), 2^2), 2*pi*rand(Np,1)]; % Uniform position and heading, Gaussian speed
-par.gen_x0 = @(Np)[abs(V_bounds(2)-V_bounds(1))*rand(Np,1)+V_bounds(1),abs(V_bounds(4)-V_bounds(3))*rand(Np,1)+V_bounds(3), 0.01^2*rand(Np,1), 2*pi*rand(Np,1)]; % Uniform position and heading, Gaussian speed
+par.gen_x0 = @(Np)[abs(V_bounds(2)-V_bounds(1))*rand(Np,1)+V_bounds(1),abs(V_bounds(4)-V_bounds(3))*rand(Np,1)+V_bounds(3), 2^2*rand(Np,1), 2*pi*rand(Np,1)]; % Uniform position and heading, Gaussian speed
 par.particles = par.gen_x0(par.Np)';                                        % Generate inital particles as per gen_x0
-par.gen_x1 = @(obs_mean, Np) [mvnrnd(repmat(obs_mean,1,Np)', cov_v), mvnrnd(zeros(Np,1), 0.06^2), 2*pi*rand(Np,1)];
+par.gen_x1 = @(obs_mean, Np) [mvnrnd(repmat(obs_mean,1,Np)', cov_v), mvnrnd(zeros(Np,1), 2^2), 2*pi*rand(Np,1)];
 %par.particles = par.gen_x0([0;0], par.Np)'; % Generate inital particles as per gen_x0
 par.w = repmat(1/par.Np, par.Np, 1)';                                       % Uniform weights
 par.likelihood = @(k, yk, xk) mvnpdf(yk, xk, cov_v);                        % Likelihood model p(y|x)
 par.obs_model = @(xk) [xk(1,:); xk(2,:)];                                   % Observation model (no noise)
 par.sys_noise = gen_sys_noise_cch;                                          % System noise
-par.Pbirth = 0.1;                                                           % Birth probability
+par.Pbirth = 0.01;                                                           % Birth probability
 par.Pdeath = 0.005;                                                         % Death probability
 par.J_k = 1000;                                                             % Number of birth particles (births by "expansion")
-par.PD = 0.6;                                                               % Probability of detection
+par.PD = 0.5;                                                               % Probability of detection
 par.lambda = lambdaV/V;                                                % Mean clutter per unit area
 par.Np_conf = pf.Np;                                                        % Number of particles for confirmed tracks
-par.P_conf = 0.95;                                                           % Confirmation probability
+par.P_conf = 0.90;                                                           % Confirmation probability
 par.type = 'search';                                                        % Search PHD filter
 par.R = cov_v;
 
@@ -370,8 +370,8 @@ for i = 1:N
                 set(h2,'LineWidth',1);
                 %plot(ax(1),jpdaf.config.TrackList{j}.TrackObj.pf.particles(1,:),jpdaf.config.TrackList{j}.TrackObj.pf.particles(2,:),strcat(colour,'.'),'MarkerSize', 3);
                 set(get(get(h4,'Annotation'),'LegendInformation'),'IconDisplayStyle','off');
-                text(ax(1),c_mean(1)+.0020,c_mean(2)-.005,int2str(j));
-                text(ax(1),c_mean(1)+.0020,c_mean(2)-.015,num2str(jpdaf.config.TrackList{j}.TrackObj.pf.ExistProb, 2));
+                text(ax(1),c_mean(1)+20,c_mean(2)-5,int2str(j));
+                text(ax(1),c_mean(1)+20,c_mean(2)-15,num2str(jpdaf.config.TrackList{j}.TrackObj.pf.ExistProb, 2));
             end
                 % set the y-axis back to normal.
             %set(ax(1),'ydir','normal');

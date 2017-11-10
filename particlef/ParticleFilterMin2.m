@@ -408,20 +408,26 @@ classdef ParticleFilterMin2
             
             %% Compute Association Likelihoods 
             z_pred = pf.obs_model(pf.particles(:,:));
-            Li = zeros(size(z_pred,2),ValidDataPointNum+1);
-            Li(:,1) = ones(size(z_pred,2),1);%*C22/(pf.V_k^(ValidDataPointNum));
+            Li = zeros(size(z_pred,2),ValidDataPointNum);
+            %Li(:,1) = ones(size(z_pred,2),1);%*C22/(pf.V_k^(ValidDataPointNum));
             if(size(pf.betta,2)~=1)
                 for i = 1:size(z, 2);
-                    Li(:,i+1) = mvnpdf(z_pred', z(:,i)', pf.R);%*C11/(pf.V_k^(ValidDataPointNum-1)*ValidDataPointNum);
+                    Li(:,i) = mvnpdf(z_pred', z(:,i)', pf.R);%*C11/(pf.V_k^(ValidDataPointNum-1)*ValidDataPointNum);
                 end
             end
             try
-                Li = Li.*repmat(pf.betta, Np, 1);
+                Li = Li.*repmat(pf.betta(2:end), Np, 1);
             catch
                 df=2;
             end
+            if(ValidDataPointNum==0)
+                expectedLikelihood = 1;
+                warning('No data available!!');
+            else
+                expectedLikelihood = sum(Li,2)/sum(pf.betta(2:end));
+            end
                 % Calculate new weights according to expected likelihood
-            wk = pf.w .* sum(Li(:,:),2); 
+            wk = pf.w .* expectedLikelihood;% sum(Li(:,:),2); 
             
             % Normalize weight vector
             pf.w = wk./sum(wk);

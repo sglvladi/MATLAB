@@ -12,7 +12,7 @@ while i<=size(radar,1)
     end
    
     while(i<=size(radar,1)&&timestamp==radar(i,7))
-       tempDataList(z,:) = radar(i,3:4)/1000;
+       tempDataList(z,:) = radar(i,3:4);%/1000;
        i=i+1
        z=z+1;
     end
