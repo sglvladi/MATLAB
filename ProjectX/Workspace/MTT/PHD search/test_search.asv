@@ -216,9 +216,9 @@ for i = 1:N
 %            set(h_legend,'FontSize',9, 'Orientation', 'horizontal', 'Location', 'north');
             axis(ax(1),V_bounds)
             %pause(0.01)
-%             if(Record)
-%                 F(i) = getframe(ax(1));
-%             end
+            if(Record)
+                F(i) = getframe(ax(1));
+            end
             
             % Plot PHD
             cla(ax(2), 'reset');
@@ -265,12 +265,12 @@ subplot(3,1,2); plot(1:N,ospa_vals(:,2),'k'); grid on; set(gca, 'XLim',[1 N]); s
 subplot(3,1,3); plot(1:N,ospa_vals(:,3),'k'); grid on; set(gca, 'XLim',[1 N]); set(gca, 'YLim',[0 ospa_c]); ylabel('OSPA Card');
 xlabel('Time');
 
-F = F(2:end);
-vidObj = VideoWriter(sprintf('phd_search.avi'));
-vidObj.Quality = 100;
-vidObj.FrameRate = 10;
-open(vidObj);
-writeVideo(vidObj, F);
-close(vidObj);
+% F = F(2:end);
+% vidObj = VideoWriter(sprintf('phd_search.avi'));
+% vidObj.Quality = 100;
+% vidObj.FrameRate = 10;
+% open(vidObj);
+% writeVideo(vidObj, F);
+% close(vidObj);
 
 

@@ -58,10 +58,10 @@ classdef GenericDynamicModelX <  DynamicModelX % Handle class with copy function
             end
             
             % Define .F
-            Params.F = @(~) [.5 0 .5 0;
-                             0 .5 0 .5;
-                             0 0 .5 0;
-                             0 0 0 .5];
+            Params.F = @(~) [1 0 0 0;
+                             0 1 0 0;
+                             0 0 1 0;
+                             0 0 0 1];
             
             
             % Validate .Q

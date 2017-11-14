@@ -1,9 +1,9 @@
 % Plot settings
-ShowPlots = 1;
+ShowPlots = 0;
 ShowUpdate = 0;
 ShowArena = 0;
 ShowPredict = 0;
-SimNum = 100;
+SimNum = 10000;
 V_bounds = [0 15 0 10];
 
 % Instantiate a Tracklist to store each filter
@@ -50,7 +50,7 @@ Params_obs.r = 0.1;
 ObsModel = PositionalObsModelX(Params_obs);%GenericObservationModelX(Params_obs);
 
 % Constant Velocity Model
-DynModel = ConstantVelocityModelX(Params_dyn);
+%DynModel = ConstantVelocityModelX(Params_dyn);
 % % Positional Observation Model;
 % obs_model = PositionalObsModelX('xDim',4,'yDim',2,'r',0.1,'smartArgs', false);
 
@@ -66,15 +66,15 @@ FilterList = cell(1,FilterNum);
 % Initiate Kalman Filter
 Params_kf.k = 1;
 Params_kf.x_init = [x_true(2,1); y_true(2,1); x_true(2,1)-x_true(1,1); y_true(2,1)-y_true(1,1)];
-Params_kf.P_init = CVmodel.Params.Q(1);
+Params_kf.P_init = DynModel.Params.Q(1);
 Params_kf.DynModel = DynModel;
 Params_kf.ObsModel = ObsModel;
 
 
 FilterList{1}.Filter = KalmanFilterX(Params_kf);
-
+%FilterList{1}.Filter.DynModel.Params.F = @(~)F;
 for SimIter = 1:SimNum
-    
+    fprintf('\nSimIter: %d/%d\n', SimIter, SimNum);
 
     % FILTERING
     % ===================>
@@ -197,14 +197,20 @@ for SimIter = 1:SimNum
     
     % COMPUTE VARIANCES
     % ===================>
-    F = smoothed_estimates{N}.Pt_tm1/(smoothed_estimates{N-1}.P + smoothed_estimates{N-1}.x*smoothed_estimates{N-1}.x');
+    %F = smoothed_estimates{N}.Pt_tm1/(smoothed_estimates{N-1}.P + smoothed_estimates{N-1}.x*smoothed_estimates{N-1}.x');
+    sumPt_tm1 = smoothed_estimates{N}.Pt_tm1;
+    sumPtm1 = (smoothed_estimates{N-1}.P + smoothed_estimates{N-1}.x*smoothed_estimates{N-1}.x');
     for k = N-1:-1:2
+        sumPtm1 = sumPtm1 + smoothed_estimates{k-1}.P + smoothed_estimates{k-1}.x*smoothed_estimates{k-1}.x';
         smoothed_estimates{k}.Vt_tm1 = filtered_estimates{k}.P*smoothed_estimates{k-1}.C' + smoothed_estimates{k}.C*(smoothed_estimates{k+1}.Vt_tm1 - FilterList{1}.Filter.DynModel.sys()*filtered_estimates{k}.P)*smoothed_estimates{k-1}.C';
         smoothed_estimates{k}.Pt_tm1 = smoothed_estimates{k}.Vt_tm1 + smoothed_estimates{k}.x*smoothed_estimates{k-1}.x';
         smoothed_estimates{k}.Ptm1_t = smoothed_estimates{k}.Vt_tm1' + smoothed_estimates{k-1}.x*smoothed_estimates{k}.x';
-        F = F + smoothed_estimates{k}.Pt_tm1/(smoothed_estimates{k-1}.P + smoothed_estimates{k-1}.x*smoothed_estimates{k-1}.x');
+        sumPt_tm1 = sumPt_tm1 + smoothed_estimates{k}.Pt_tm1;
     end
-    F = F/N;
+    F = sumPt_tm1/sumPtm1;
+    
+    % Reset KF
+    FilterList{1}.Filter = KalmanFilterX(Params_kf);
     FilterList{1}.Filter.DynModel.Params.F = @(~)F;
     
 end

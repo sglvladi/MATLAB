@@ -10,7 +10,7 @@ clear F
 clear M
 
 %% Clutter settings
-lambdaV = 10; % mean number of clutter points 
+lambdaV = 100; % mean number of clutter points 
 V_bounds = [0 10 0 10]; %[-700 -400 -700 400]; %[-2500 200 -3000 3000]; %[-2.5 .2 -3 3]; [-2 -.800 2 3] [-.700 -.400 -.700 .400]; % [x_min x_max y_min y_max]
 V = (abs(V_bounds(2)-V_bounds(1))*abs(V_bounds(4)-V_bounds(3)));
 
@@ -45,7 +45,7 @@ TrackNum = 3;
 TrueTracks = 3;
 
 %% Generate DataList                       (TrackNum, x_true, y_true, R, R_clutter, lambdaV, Iter)                   
-[DataList,x1,y1] = gen_obs_cluttered_multi2(TrueTracks, x_true, y_true, POmodel.Params.r, 2, lambdaV, 1);
+%[DataList,x1,y1] = gen_obs_cluttered_multi2(TrueTracks, x_true, y_true, POmodel.Params.r, 2, lambdaV, 1);
 % 
 % %% Get GroundTruth
 % for i=1:TrueTracks
@@ -149,7 +149,7 @@ for i = 1:N
 %         end
 %     end
     
-    
+    tic;
     %% 1) Predict the confirmed tracks
     jpdaf.Predict();
     %% 2) Update the confirmed tracks
@@ -157,7 +157,7 @@ for i = 1:N
     %% 3) Perform track management
     %[jpdaf, myphd, TrackIds] = ExistProbPHDSearchX(jpdaf, myphd, initFilter, TrackIds);
     [jpdaf, pdaf, TrackIds] =  MoutOfN_TM(jpdaf, pdaf, [8,2,3*initFilter.ObsModel.Params.r], initFilter, TrackIds);
-    
+    exec_time = exec_time + toc;
     %% Store Logs
     % Expand Logs to fit new track
     TrackNums(i) = jpdaf.Params.nTracks;
@@ -272,9 +272,9 @@ for k=1:N
 end
 
 figure; ospa= gcf; hold on;
-subplot(3,1,1); plot(1:N,ospa_vals(:,1),'k'); grid on; set(gca, 'XLim',[1 N]); set(gca, 'YLim',[0 ospa_c]); ylabel('OSPA Dist');
-subplot(3,1,2); plot(1:N,ospa_vals(:,2),'k'); grid on; set(gca, 'XLim',[1 N]); set(gca, 'YLim',[0 ospa_c]); ylabel('OSPA Loc');
-subplot(3,1,3); plot(1:N,ospa_vals(:,3),'k'); grid on; set(gca, 'XLim',[1 N]); set(gca, 'YLim',[0 ospa_c]); ylabel('OSPA Card');
+subplot(3,1,1); plot(1:N,ospa_vals_mon(:,1),'k'); hold on; plot(1:N,ospa_vals_lpr(:,1),'r'); plot(1:N,ospa_vals_phd(:,1),'g'); grid on; set(gca, 'XLim',[1 N]); set(gca, 'YLim',[0 ospa_c]); ylabel('OSPA Dist');
+subplot(3,1,2); plot(1:N,ospa_vals_mon(:,2),'k'); hold on; plot(1:N,ospa_vals_lpr(:,2),'r'); plot(1:N,ospa_vals_phd(:,2),'g'); grid on; set(gca, 'XLim',[1 N]); set(gca, 'YLim',[0 ospa_c]); ylabel('OSPA Loc');
+subplot(3,1,3); plot(1:N,ospa_vals_mon(:,3),'k'); hold on; plot(1:N,ospa_vals_lpr(:,3),'r'); plot(1:N,ospa_vals_phd(:,3),'g'); grid on; set(gca, 'XLim',[1 N]); set(gca, 'YLim',[0 ospa_c]); ylabel('OSPA Card');
 xlabel('Time');
 
 F = F(2:end);

@@ -69,6 +69,7 @@ Params.resampling_strategy = 'systematic_resampling'; % resampling strategy
 Params.DynModel = CHmodel;
 Params.ObsModel = POmodel;
 Params.gen_x0 = @(Np)[abs(V_bounds(2)-V_bounds(1))*rand(Np,1)+V_bounds(1),abs(V_bounds(4)-V_bounds(3))*rand(Np,1)+V_bounds(3), 2^2*rand(Np,1), 2*pi*rand(Np,1)]; % Uniform position and heading, Gaussian speed
+%Params.gen_x0 = @(Np)[abs(V_bounds(2)-V_bounds(1))*rand(Np,1)+V_bounds(1),abs(V_bounds(4)-V_bounds(3))*rand(Np,1)+V_bounds(3), 2^2*rand(Np,1), 2^2*rand(Np,1)]; % Uniform position and heading, Gaussian speed
 %Params.gen_x0 = @(Np) [(V_bounds(2)-V_bounds(1))*rand(Np,1),(V_bounds(4)-V_bounds(3))*rand(Np,1), mvnrnd(zeros(Np,1), CVmodel.Params.q^2), 2*pi*rand(Np,1)]; % Uniform position and heading, Gaussian speed
 Params.particles_init = Params.gen_x0(Params.Np)'; % Generate inital particles as per gen_x0
 Params.w_init = repmat(1/Params.Np, Params.Np, 1)'; % Uniform weights
@@ -110,9 +111,11 @@ x = min_x:max_x;
 y = (6/8)*x;
 
 figure('units','normalized','outerposition',[0 0 1 1])
-ax(1) = gca;
-figure('units','normalized','outerposition',[.5 0 .5 1])
-ax(2) = gca;
+ax(1) = subplot(1,2,1);
+set(ax(1), 'Position', [0.02 0.02 .46 0.96]);
+ax(2) = subplot(1,2,2);
+% figure('units','normalized','outerposition',[.5 0 .5 1])
+% ax(2) = gca;
 
 TrackIds = [];
 
@@ -203,7 +206,7 @@ for i = 1:N
             axis(ax(1),V_bounds)
             %pause(0.01)
             if(Record)
-                F(i) = getframe(ax(1));
+                F(i) = getframe(gcf);
             end
             
             % Plot PHD
@@ -221,17 +224,18 @@ for i = 1:N
             ylabel(ax(2),'Y position (m)')
             zlabel(ax(2),'Intensity')
             title(ax(2),str)
+            axis(ax(2),[V_bounds, 0, 0.0001])
             %pause(0.01)
         end
     end
 end
 
-F = F(2:end);
-vidObj = VideoWriter(sprintf('phd_search.avi'));
-vidObj.Quality = 100;
-vidObj.FrameRate = 10;
-open(vidObj);
-writeVideo(vidObj, F);
-close(vidObj);
+% F = F(2:end);
+% vidObj = VideoWriter(sprintf('phd_search_test.avi'));
+% vidObj.Quality = 100;
+% vidObj.FrameRate = 10;
+% open(vidObj);
+% writeVideo(vidObj, F);
+% close(vidObj);
 
 
